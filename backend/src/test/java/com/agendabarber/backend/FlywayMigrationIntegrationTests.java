@@ -37,7 +37,7 @@ class FlywayMigrationIntegrationTests {
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration")
                 .load();
-        assertEquals(2, flyway.migrate().migrationsExecuted);
+        assertEquals(3, flyway.migrate().migrationsExecuted);
         assertTrue(flyway.validateWithResult().validationSuccessful);
     }
 
@@ -48,7 +48,7 @@ class FlywayMigrationIntegrationTests {
                         + "WHERE table_schema = 'public' AND table_name IN "
                         + "('users','barbers','clients','services','appointments','blocked_periods',"
                         + "'working_hours','expenses','idempotency_records')"));
-        assertEquals(2, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
+        assertEquals(3, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
         assertEquals(1, count("SELECT count(*) FROM information_schema.tables "
                 + "WHERE table_schema='public' AND table_name='auth_refresh_tokens'"));
         assertEquals(1, count("SELECT count(*) FROM pg_constraint "
@@ -118,6 +118,16 @@ class FlywayMigrationIntegrationTests {
         execute("UPDATE services SET name='Updated' WHERE id=?", f.serviceId());
         assertEquals(1, count("SELECT count(*) FROM services WHERE id='"
                 + f.serviceId() + "' AND updated_at >= created_at"));
+    }
+
+    @Test
+    void v3IconKeyDefaultsAndRejectsUnknownVisuals() throws SQLException {
+        Fixture f = fixture();
+        assertEquals(1, count("SELECT count(*) FROM services WHERE id='" + f.serviceId()
+                + "' AND icon_key='SCISSORS'"));
+        SQLException invalid = assertThrows(SQLException.class,
+                () -> execute("UPDATE services SET icon_key='WRONG' WHERE id=?", f.serviceId()));
+        assertEquals("23514", invalid.getSQLState());
     }
 
     private static Fixture fixture() throws SQLException {

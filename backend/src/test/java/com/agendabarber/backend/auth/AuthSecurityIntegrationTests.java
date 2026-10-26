@@ -13,6 +13,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.time.Instant;
+import java.math.BigDecimal;
+import com.agendabarber.backend.scheduling.AgendaSchedulingService;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -86,7 +88,7 @@ class AuthSecurityIntegrationTests {
         Flyway flyway = Flyway.configure()
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration").load();
-        assertEquals(2, flyway.migrate().migrationsExecuted);
+        assertEquals(3, flyway.migrate().migrationsExecuted);
         flyway.validate();
     }
 
@@ -98,6 +100,9 @@ class AuthSecurityIntegrationTests {
 
     @Autowired
     private JwtEncoder jwtEncoder;
+
+    @Autowired
+    private AgendaSchedulingService scheduling;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -309,6 +314,118 @@ class AuthSecurityIntegrationTests {
         }
     }
 
+
+    @Test
+    void servicesCrudSupportsUx07CardsAndUx04DropdownWithStrictBarberIsolation() throws Exception {
+        Account a = account();
+        Account b = account();
+        String aJwt = tokenFor(a);
+        String bJwt = tokenFor(b);
+        assertEquals(401, request("GET", "/api/v1/services", null, null).statusCode());
+        String payload = """
+                {"name":"  Corte Degrade  ","durationMinutes":45,"defaultPrice":45.50,
+                 "isHaircut":true,"iconKey":"SCISSORS"}
+                """;
+        HttpResponse<String> created = request("POST", "/api/v1/services", payload, aJwt);
+        assertEquals(201, created.statusCode(), created.body());
+        JsonNode view = mapper.readTree(created.body());
+        String id = view.get("id").asText();
+        assertEquals("/api/v1/services/" + id, created.headers().firstValue("Location").orElse(""));
+        assertEquals("Corte Degrade", view.get("name").asText());
+        assertEquals(45, view.get("durationMinutes").asInt());
+        assertEquals(0, new BigDecimal("45.50").compareTo(view.get("defaultPrice").decimalValue()));
+        assertTrue(view.get("isHaircut").asBoolean());
+        assertTrue(view.get("active").asBoolean());
+        assertEquals("SCISSORS", view.get("iconKey").asText());
+        assertTrue(view.has("createdAt"));
+        assertEquals(1, mapper.readTree(request("GET", "/api/v1/services?activeOnly=true",
+                null, aJwt).body()).size());
+        assertEquals(0, mapper.readTree(request("GET", "/api/v1/services", null, bJwt).body()).size());
+        assertEquals(404, request("GET", "/api/v1/services/" + id, null, bJwt).statusCode());
+        assertEquals(404, request("PATCH", "/api/v1/services/" + id,
+                "{\"defaultPrice\":100}", bJwt).statusCode());
+        assertEquals(404, request("DELETE", "/api/v1/services/" + id, null, bJwt).statusCode());
+
+        HttpResponse<String> patched = request("PATCH", "/api/v1/services/" + id,
+                "{\"durationMinutes\":60,\"defaultPrice\":50.00,\"iconKey\":\"COMBO\"}", aJwt);
+        assertEquals(200, patched.statusCode(), patched.body());
+        assertEquals(60, mapper.readTree(patched.body()).get("durationMinutes").asInt());
+        assertEquals("COMBO", mapper.readTree(patched.body()).get("iconKey").asText());
+        assertEquals(204, request("DELETE", "/api/v1/services/" + id, null, aJwt).statusCode());
+        assertEquals(0, mapper.readTree(request("GET", "/api/v1/services?activeOnly=true",
+                null, aJwt).body()).size());
+        assertEquals(1, mapper.readTree(request("GET", "/api/v1/services",
+                null, aJwt).body()).size());
+        assertFalse(mapper.readTree(request("GET", "/api/v1/services/" + id,
+                null, aJwt).body()).get("active").asBoolean());
+        assertEquals(200, request("PATCH", "/api/v1/services/" + id,
+                "{\"active\":true}", aJwt).statusCode());
+        assertEquals(1, mapper.readTree(request("GET", "/api/v1/services?activeOnly=true",
+                null, aJwt).body()).size());
+    }
+
+    @Test
+    void servicesValidateMoneyDurationNamesAndVisualEnums() throws Exception {
+        Account a = account();
+        String jwt = tokenFor(a);
+        String base = "{\"name\":\"Barba\",\"durationMinutes\":30,"
+                + "\"defaultPrice\":25.00,\"isHaircut\":false}";
+        List<String> invalid = List.of(
+                "{\"name\":\" \",\"durationMinutes\":30,\"defaultPrice\":12,\"isHaircut\":true}",
+                "{\"name\":\"x\",\"durationMinutes\":0,\"defaultPrice\":12,\"isHaircut\":true}",
+                "{\"name\":\"x\",\"durationMinutes\":481,\"defaultPrice\":12,\"isHaircut\":true}",
+                "{\"name\":\"x\",\"durationMinutes\":30,\"defaultPrice\":-1,\"isHaircut\":true}",
+                "{\"name\":\"x\",\"durationMinutes\":30,\"defaultPrice\":10.999,\"isHaircut\":true}",
+                "{\"name\":\"x\",\"durationMinutes\":30,\"defaultPrice\":12}",
+                "{\"name\":\"x\",\"durationMinutes\":30,\"defaultPrice\":12,\"isHaircut\":true,"
+                        + "\"iconKey\":\"INVALID\"}");
+        for (String input : invalid) {
+            assertEquals(400, request("POST", "/api/v1/services", input, jwt).statusCode(), input);
+        }
+        HttpResponse<String> created = request("POST", "/api/v1/services", base, jwt);
+        assertEquals(201, created.statusCode(), created.body());
+        JsonNode item = mapper.readTree(created.body());
+        assertEquals("SCISSORS", item.get("iconKey").asText());
+        String url = "/api/v1/services/" + item.get("id").asText();
+        assertEquals(400, request("PATCH", url, "{}", jwt).statusCode());
+        assertEquals(400, request("PATCH", url, "{\"name\":\"   \"}", jwt).statusCode());
+        assertEquals(400, request("PATCH", url, "{\"defaultPrice\":10.001}", jwt).statusCode());
+        assertEquals(400, request("POST", "/api/v1/services", "{bad json}", jwt).statusCode());
+    }
+
+    @Test
+    void serviceCatalogChangesDoNotRewriteHistoricalAppointmentSnapshot() throws Exception {
+        Account a = account();
+        String jwt = tokenFor(a);
+        HttpResponse<String> created = request("POST", "/api/v1/services",
+                "{\"name\":\"Tradicional\",\"durationMinutes\":60,"
+                        + "\"defaultPrice\":40.00,\"isHaircut\":true}", jwt);
+        assertEquals(201, created.statusCode(), created.body());
+        UUID service = UUID.fromString(mapper.readTree(created.body()).get("id").asText());
+        UUID client = UUID.randomUUID();
+        update("INSERT INTO clients(id,barber_id,name) VALUES(?,?,'Client')", client, a.barber());
+        for (int weekday = 1; weekday <= 7; weekday++) {
+            update("INSERT INTO working_hours(barber_id,weekday,opens_at,closes_at) "
+                    + "VALUES(?,?,TIME '08:00',TIME '18:00')", a.barber(), weekday);
+        }
+        UUID appointment = scheduling.schedule(a.barber(), client, service,
+                Instant.parse("2030-03-01T13:00:00Z"), Instant.parse("2030-03-01T14:00:00Z"));
+        assertEquals(200, request("PATCH", "/api/v1/services/" + service,
+                "{\"name\":\"Novo Nome\",\"defaultPrice\":70.00}", jwt).statusCode());
+        assertEquals(204, request("DELETE", "/api/v1/services/" + service,
+                null, jwt).statusCode());
+        try (Connection connection = database();
+                PreparedStatement statement = connection.prepareStatement(
+                        "SELECT service_name_snapshot, price_snapshot FROM appointments WHERE id=?")) {
+            statement.setObject(1, appointment);
+            try (var result = statement.executeQuery()) {
+                assertTrue(result.next());
+                assertEquals("Tradicional", result.getString("service_name_snapshot"));
+                assertEquals(new BigDecimal("40.00"), result.getBigDecimal("price_snapshot"));
+            }
+        }
+    }
+
     private Account account() throws Exception {
         UUID user = UUID.randomUUID();
         UUID barber = UUID.randomUUID();
@@ -350,11 +467,14 @@ class AuthSecurityIntegrationTests {
         if (token != null) {
             builder.header("Authorization", "Bearer " + token);
         }
-        if ("POST".equals(method)) {
-            builder.header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(body));
-        } else {
+        if ("GET".equals(method)) {
             builder.GET();
+        } else {
+            if (body != null) {
+                builder.header("Content-Type", "application/json");
+            }
+            builder.method(method, body == null ? HttpRequest.BodyPublishers.noBody()
+                    : HttpRequest.BodyPublishers.ofString(body));
         }
         try (HttpClient client = HttpClient.newHttpClient()) {
             return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
