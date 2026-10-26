@@ -2,7 +2,7 @@ package com.agendabarber.backend.clientcatalog;
 
 import com.agendabarber.backend.clientcatalog.ClientCatalogDtos.ClientInput;
 import com.agendabarber.backend.clientcatalog.ClientCatalogDtos.ClientView;
-import com.fasterxml.jackson.databind.JsonNode;
+import java.util.Map;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
@@ -56,7 +56,7 @@ public class ClientCatalogController {
 
     @PatchMapping("/{id}")
     public ClientView update(@AuthenticationPrincipal Jwt jwt,
-                             @PathVariable UUID id, @RequestBody JsonNode patch) {
+                             @PathVariable UUID id, @RequestBody Map<String, Object> patch) {
         return clients.update(barberId(jwt), id, patch);
     }
 
