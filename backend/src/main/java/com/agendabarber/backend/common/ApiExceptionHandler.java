@@ -3,6 +3,7 @@ package com.agendabarber.backend.common;
 import com.agendabarber.backend.auth.AuthService;
 import com.agendabarber.backend.auth.AuthSessionService;
 import com.agendabarber.backend.auth.LoginRateLimiter;
+import com.agendabarber.backend.servicecatalog.ServiceCatalogService;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.HttpHeaders;
@@ -54,6 +55,16 @@ public class ApiExceptionHandler {
         body.setTitle("Too many requests");
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header(HttpHeaders.RETRY_AFTER, "900").body(body);
+    }
+
+    @ExceptionHandler(ServiceCatalogService.ServiceNotFoundException.class)
+    ResponseEntity<ProblemDetail> unknownService(ServiceCatalogService.ServiceNotFoundException ignored) {
+        return problem(HttpStatus.NOT_FOUND, "Not found", "Service not found.");
+    }
+
+    @ExceptionHandler(ServiceCatalogService.InvalidServiceUpdateException.class)
+    ResponseEntity<ProblemDetail> invalidService(ServiceCatalogService.InvalidServiceUpdateException ignored) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid request", "Invalid service data.");
     }
 
     @ExceptionHandler(Exception.class)
