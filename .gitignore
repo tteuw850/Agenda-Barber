@@ -13,3 +13,11 @@ target/
 *.iml
 .DS_Store
 Thumbs.db
+
+android-app/.kotlin/
+*.apk
+*.aab
+*.hprof
+.settings/
+.classpath
+.project
