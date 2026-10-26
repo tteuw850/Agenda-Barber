@@ -31,6 +31,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.parameters.P;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
@@ -397,6 +398,19 @@ class AuthSecurityIntegrationTests {
         @Bean
         ScopeProbeController scopeProbeController() {
             return new ScopeProbeController();
+        }
+
+        @Bean
+        @Primary
+        LoginRateLimiter isolatedLoginLimiter(java.time.Clock clock) {
+            // Keep the per-account limiter real, but isolate request IP counters
+            // by account; otherwise unrelated test methods collectively trip 429.
+            return new LoginRateLimiter(clock) {
+                @Override
+                public synchronized void check(String email, String address) {
+                    super.check(email, email + "|" + address);
+                }
+            };
         }
     }
 
