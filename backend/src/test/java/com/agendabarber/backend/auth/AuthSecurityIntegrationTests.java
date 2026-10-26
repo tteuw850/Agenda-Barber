@@ -17,6 +17,11 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -274,6 +279,33 @@ class AuthSecurityIntegrationTests {
         assertEquals(401, get("/api/v1/auth/me", rotated.get("accessToken").asText()).statusCode());
         assertEquals(200, get("/api/v1/auth/me", independent.get("accessToken").asText()).statusCode());
         assertEquals(200, refresh(independent.get("refreshToken").asText()).statusCode());
+    }
+
+    @Test
+    void simultaneousRefreshRequestsPermitOnlyOneRotationAndRevokeOnReplay() throws Exception {
+        Account a = account();
+        JsonNode first = mapper.readTree(login(a.email(), PASSWORD).body());
+        String raw = first.get("refreshToken").asText();
+        CountDownLatch go = new CountDownLatch(1);
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<HttpResponse<String>> left = executor.submit(() -> {
+                go.await(15, TimeUnit.SECONDS);
+                return refresh(raw);
+            });
+            Future<HttpResponse<String>> right = executor.submit(() -> {
+                go.await(15, TimeUnit.SECONDS);
+                return refresh(raw);
+            });
+            go.countDown();
+            HttpResponse<String> one = left.get(60, TimeUnit.SECONDS);
+            HttpResponse<String> two = right.get(60, TimeUnit.SECONDS);
+            assertEquals(1, List.of(one, two).stream().filter(r -> r.statusCode() == 200).count());
+            assertEquals(1, List.of(one, two).stream().filter(r -> r.statusCode() == 401).count());
+            String winner = one.statusCode() == 200 ? one.body() : two.body();
+            JsonNode rotated = mapper.readTree(winner);
+            assertEquals(401, refresh(rotated.get("refreshToken").asText()).statusCode());
+            assertEquals(401, get("/api/v1/auth/me", rotated.get("accessToken").asText()).statusCode());
+        }
     }
 
     private Account account() throws Exception {
