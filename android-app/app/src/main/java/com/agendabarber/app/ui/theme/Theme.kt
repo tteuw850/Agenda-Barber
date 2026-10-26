@@ -41,10 +41,7 @@ private val StatisticsLightColors = lightColorScheme(
 )
 
 @Composable
-fun AgendaBarberTheme(
-    statisticsScreen: Boolean = false,
-    content: @Composable () -> Unit
-) {
+fun AgendaBarberTheme(statisticsScreen: Boolean = false, content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = if (statisticsScreen) StatisticsLightColors else AgendaDarkColors,
         typography = AgendaBarberTypography,
