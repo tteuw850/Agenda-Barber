@@ -2,10 +2,6 @@ package com.agendabarber.backend.clientcatalog;
 
 import com.agendabarber.backend.clientcatalog.ClientCatalogDtos.ClientInput;
 import com.agendabarber.backend.clientcatalog.ClientCatalogDtos.ClientView;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import java.sql.ResultSet;
@@ -15,6 +11,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
@@ -29,9 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Profile("neon")
 public class ClientCatalogService {
-    private static final Set<String> EDITABLE = Set.of(
-            "name", "phone", "email", "birthDate", "notes", "favorite", "photoUrl");
-
     private static final String SELECT = "SELECT c.id,c.name,c.phone,c.email,c.birth_date,c.notes,"
             + "c.favorite,c.photo_url,c.active,c.created_at,c.updated_at,"
             + "COALESCE(stats.completed_count,0) AS completed_count,stats.last_visit "
@@ -41,12 +35,10 @@ public class ClientCatalogService {
             + "AND a.status='COMPLETED'::appointment_status) stats ON true ";
     private static final RowMapper<ClientView> MAPPER = (rs, number) -> map(rs);
     private final JdbcTemplate jdbc;
-    private final ObjectMapper mapper;
     private final Validator validator;
 
-    public ClientCatalogService(JdbcTemplate jdbc, ObjectMapper mapper, Validator validator) {
+    public ClientCatalogService(JdbcTemplate jdbc, Validator validator) {
         this.jdbc = jdbc;
-        this.mapper = mapper;
         this.validator = validator;
     }
 
@@ -119,37 +111,26 @@ public class ClientCatalogService {
         }
     }
 
-    /** JSON merge semantics: missing keys preserve values; null clears optional fields. */
+    /** JSON merge semantics: missing fields preserve values, null clears optional fields. */
     @Transactional
-    public ClientView update(UUID barberId, UUID clientId, JsonNode patch) {
-        if (!(patch instanceof ObjectNode object) || object.isEmpty()) {
+    public ClientView update(UUID barberId, UUID clientId, Map<String, Object> patch) {
+        if (patch == null || patch.isEmpty() || !Set.of(
+                "name", "phone", "email", "birthDate", "notes", "favorite", "photoUrl")
+                .containsAll(patch.keySet())) {
             throw new InvalidClientException();
         }
         ClientView current = get(barberId, clientId);
-        ObjectNode merged = mapper.createObjectNode();
-        merged.put("name", current.name());
-        putOptional(merged, "phone", current.phone());
-        putOptional(merged, "email", current.email());
-        putOptional(merged, "birthDate",
-                current.birthDate() == null ? null : current.birthDate().toString());
-        putOptional(merged, "notes", current.notes());
-        merged.put("favorite", current.favorite());
-        putOptional(merged, "photoUrl", current.photoUrl());
-        object.fields().forEachRemaining(field -> {
-            if (!EDITABLE.contains(field.getKey())
-                    || (("name".equals(field.getKey()) || "favorite".equals(field.getKey()))
-                        && field.getValue().isNull())) {
-                throw new InvalidClientException();
-            }
-            merged.set(field.getKey(), field.getValue());
-        });
-        ClientInput updated;
-        try {
-            updated = mapper.treeToValue(merged, ClientInput.class);
-        } catch (JsonProcessingException error) {
-            throw new InvalidClientException();
-        }
-        ClientInput data = normalize(updated);
+        String name = patch.containsKey("name") ? text(patch.get("name")) : current.name();
+        String phone = patch.containsKey("phone") ? text(patch.get("phone")) : current.phone();
+        String email = patch.containsKey("email") ? text(patch.get("email")) : current.email();
+        String notes = patch.containsKey("notes") ? text(patch.get("notes")) : current.notes();
+        String photo = patch.containsKey("photoUrl") ? text(patch.get("photoUrl")) : current.photoUrl();
+        LocalDate birthDate = patch.containsKey("birthDate")
+                ? birthDate(patch.get("birthDate")) : current.birthDate();
+        boolean favorite = patch.containsKey("favorite")
+                ? favorite(patch.get("favorite")) : current.favorite();
+        ClientInput data = normalize(new ClientInput(
+                name, phone, email, birthDate, notes, favorite, photo));
         try {
             jdbc.update("UPDATE clients SET name=?,phone=?,email=?,birth_date=?,notes=?,"
                             + "favorite=?,photo_url=? WHERE barber_id=? AND id=? AND active=true",
@@ -159,6 +140,35 @@ public class ClientCatalogService {
             throw conflictOrOriginal(error);
         }
         return get(barberId, clientId);
+    }
+
+    private static String text(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String string) {
+            return string;
+        }
+        throw new InvalidClientException();
+    }
+
+    private static LocalDate birthDate(Object value) {
+        String source = text(value);
+        if (source == null || source.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(source);
+        } catch (java.time.format.DateTimeParseException invalid) {
+            throw new InvalidClientException();
+        }
+    }
+
+    private static boolean favorite(Object value) {
+        if (value instanceof Boolean flag) {
+            return flag;
+        }
+        throw new InvalidClientException();
     }
 
     /** Soft deletion retains appointment foreign keys and historical attribution. */
@@ -214,14 +224,6 @@ public class ClientCatalogService {
         }
         String trimmed = value.strip();
         return trimmed.isEmpty() ? null : trimmed;
-    }
-
-    private static void putOptional(ObjectNode node, String field, String value) {
-        if (value == null) {
-            node.putNull(field);
-        } else {
-            node.put(field, value);
-        }
     }
 
     private static ClientView map(ResultSet rs) throws SQLException {
