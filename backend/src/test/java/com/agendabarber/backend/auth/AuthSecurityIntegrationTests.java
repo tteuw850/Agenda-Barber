@@ -333,7 +333,7 @@ class AuthSecurityIntegrationTests {
         assertEquals("/api/v1/services/" + id, created.headers().firstValue("Location").orElse(""));
         assertEquals("Corte Degrade", view.get("name").asText());
         assertEquals(45, view.get("durationMinutes").asInt());
-        assertEquals(new BigDecimal("45.50"), view.get("defaultPrice").decimalValue());
+        assertEquals(0, new BigDecimal("45.50").compareTo(view.get("defaultPrice").decimalValue()));
         assertTrue(view.get("isHaircut").asBoolean());
         assertTrue(view.get("active").asBoolean());
         assertEquals("SCISSORS", view.get("iconKey").asText());
