@@ -7,8 +7,6 @@ import com.agendabarber.backend.scheduleconfig.ScheduleDtos.WeeklyBlockInput;
 import com.agendabarber.backend.scheduleconfig.ScheduleDtos.WeeklyBlockView;
 import com.agendabarber.backend.scheduleconfig.ScheduleDtos.WorkingHoursInput;
 import com.agendabarber.backend.scheduleconfig.ScheduleDtos.WorkingHoursView;
-import java.sql.Timestamp;
-import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -183,7 +181,7 @@ public class ScheduleConfigService {
             if (!hours.enabled() || hours.weekday() != date.getDayOfWeek().getValue()) {
                 continue;
             }
-            for (LocalTime time = hours.opensAt(); !time.plusMinutes(duration).isAfter(hours.closesAt());
+            for (LocalTime time = hours.opensAt(); Duration.between(time, hours.closesAt()).toMinutes() >= duration;
                     time = time.plusMinutes(15)) {
                 Instant from = resolved(date, time, zone);
                 Instant to = resolved(date, time.plusMinutes(duration), zone);
