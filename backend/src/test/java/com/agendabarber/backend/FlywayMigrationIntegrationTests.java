@@ -37,7 +37,7 @@ class FlywayMigrationIntegrationTests {
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration")
                 .load();
-        assertEquals(4, flyway.migrate().migrationsExecuted);
+        assertEquals(5, flyway.migrate().migrationsExecuted);
         assertTrue(flyway.validateWithResult().validationSuccessful);
     }
 
@@ -48,7 +48,7 @@ class FlywayMigrationIntegrationTests {
                         + "WHERE table_schema = 'public' AND table_name IN "
                         + "('users','barbers','clients','services','appointments','blocked_periods',"
                         + "'working_hours','expenses','idempotency_records')"));
-        assertEquals(4, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
+        assertEquals(5, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
         assertEquals(1, count("SELECT count(*) FROM information_schema.tables "
                 + "WHERE table_schema='public' AND table_name='auth_refresh_tokens'"));
         assertEquals(1, count("SELECT count(*) FROM pg_constraint "
@@ -147,6 +147,15 @@ class FlywayMigrationIntegrationTests {
                 execute("INSERT INTO clients(barber_id,name,phone) VALUES(?, 'Duplicate', '31999998888')",
                         f.barberId()));
         assertEquals("23505", duplicate.getSQLState());
+    }
+
+    @Test
+    void v5AddsRecurringBlocksAndSingleBlockNotesWithoutChangingEarlierVersions() throws SQLException {
+        assertEquals(1, count("SELECT count(*) FROM information_schema.tables "
+                + "WHERE table_schema='public' AND table_name='recurring_blocks'"));
+        assertEquals(1, count("SELECT count(*) FROM information_schema.columns "
+                + "WHERE table_name='blocked_periods' AND column_name='notes'"));
+        assertEquals(5, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
     }
 
     private static Fixture fixture() throws SQLException {

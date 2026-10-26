@@ -5,6 +5,8 @@ import com.agendabarber.backend.auth.AuthSessionService;
 import com.agendabarber.backend.auth.LoginRateLimiter;
 import com.agendabarber.backend.servicecatalog.ServiceCatalogService;
 import com.agendabarber.backend.clientcatalog.ClientCatalogService;
+import com.agendabarber.backend.scheduleconfig.ScheduleConfigService;
+import com.agendabarber.backend.scheduling.AgendaSchedulingService;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.HttpHeaders;
@@ -81,6 +83,22 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ClientCatalogService.DuplicatePhoneException.class)
     ResponseEntity<ProblemDetail> duplicatePhone(ClientCatalogService.DuplicatePhoneException ignored) {
         return problem(HttpStatus.CONFLICT, "Conflict", "Phone already registered.");
+    }
+
+    @ExceptionHandler(ScheduleConfigService.InvalidScheduleException.class)
+    ResponseEntity<ProblemDetail> invalidSchedule(ScheduleConfigService.InvalidScheduleException ignored) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid request", "Invalid scheduling settings.");
+    }
+
+    @ExceptionHandler(ScheduleConfigService.ScheduleNotFoundException.class)
+    ResponseEntity<ProblemDetail> missingSchedule(ScheduleConfigService.ScheduleNotFoundException ignored) {
+        return problem(HttpStatus.NOT_FOUND, "Not found", "Scheduling item not found.");
+    }
+
+    @ExceptionHandler({ScheduleConfigService.ScheduleConflictException.class,
+                       AgendaSchedulingService.ScheduleConflictException.class})
+    ResponseEntity<ProblemDetail> schedulingConflict(RuntimeException ignored) {
+        return problem(HttpStatus.CONFLICT, "Conflict", "Requested time is unavailable.");
     }
 
     @ExceptionHandler(Exception.class)

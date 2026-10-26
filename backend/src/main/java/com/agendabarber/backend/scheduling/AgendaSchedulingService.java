@@ -5,6 +5,7 @@ import java.sql.SQLException;
 import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -65,6 +66,7 @@ public final class AgendaSchedulingService {
                 requireWorkingHours(barberId, start, end, zone);
                 requireNoAppointment(barberId, start, end);
                 requireNoBlock(barberId, start, end);
+                requireNoRecurringBlock(barberId, start, end, zone);
                 UUID id = UUID.randomUUID();
                 jdbc.update("INSERT INTO appointments "
                                 + "(id,barber_id,client_id,service_id,starts_at,ends_at,"
@@ -86,9 +88,10 @@ public final class AgendaSchedulingService {
         Objects.requireNonNull(barberId);
         checkRange(start, end);
         return tx.execute(status -> {
-            lockBarber(barberId);
+            ZoneId zone = lockBarber(barberId);
             requireNoAppointment(barberId, start, end);
             requireNoBlock(barberId, start, end);
+            requireNoRecurringBlock(barberId, start, end, zone);
             UUID id = UUID.randomUUID();
             jdbc.update("INSERT INTO blocked_periods(id,barber_id,starts_at,ends_at,reason) "
                             + "VALUES(?,?,?,?,?)", id, barberId, utc(start), utc(end), reason);
@@ -136,6 +139,27 @@ public final class AgendaSchedulingService {
                 Boolean.class, barberId, utc(end), utc(start));
         if (Boolean.TRUE.equals(exists)) {
             throw new ScheduleConflictException(ConflictType.BLOCKED_PERIOD_OVERLAP);
+        }
+    }
+
+    private void requireNoRecurringBlock(UUID barberId, Instant start, Instant end, ZoneId zone) {
+        LocalDate first = start.atZone(zone).toLocalDate();
+        LocalDate last = end.atZone(zone).toLocalDate();
+        for (LocalDate date = first; !date.isAfter(last); date = date.plusDays(1)) {
+            if (date.equals(last) && !date.equals(first)
+                    && end.atZone(zone).toLocalTime().equals(LocalTime.MIDNIGHT)) {
+                continue;
+            }
+            LocalTime lower = date.equals(first) ? start.atZone(zone).toLocalTime() : LocalTime.MIN;
+            LocalTime upper = date.equals(last) ? end.atZone(zone).toLocalTime() : LocalTime.MAX;
+            Boolean conflict = jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM recurring_blocks "
+                            + "WHERE barber_id=? AND weekday=? AND valid_from<=? AND valid_until>=? "
+                            + "AND starts_at<? AND ends_at>?)",
+                    Boolean.class, barberId, date.getDayOfWeek().getValue(),
+                    date, date, upper, lower);
+            if (Boolean.TRUE.equals(conflict)) {
+                throw new ScheduleConflictException(ConflictType.BLOCKED_PERIOD_OVERLAP);
+            }
         }
     }
 
