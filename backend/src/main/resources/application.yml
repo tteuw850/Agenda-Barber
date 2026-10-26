@@ -1,10 +1,51 @@
 spring:
   application:
     name: agenda-barber-api
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: none
 server:
   port: ${PORT:8080}
 management:
   endpoints:
     web:
       exposure:
+        include: ''
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+---
+# Default profile keeps the existing local bootstrap and CI tests independent of Neon.
+spring:
+  config:
+    activate:
+      on-profile: default
+  autoconfigure:
+    exclude: org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+management:
+  endpoints:
+    web:
+      exposure:
         include: health,info
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+server:
+  address: 127.0.0.1
+---
+# Enable explicitly with SPRING_PROFILES_ACTIVE=neon.
+spring:
+  config:
+    activate:
+      on-profile: neon
+  datasource:
+    url: ${NEON_JDBC_URL}
+    username: ${NEON_DB_USERNAME}
+    password: ${NEON_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
