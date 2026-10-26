@@ -50,7 +50,8 @@ public class ServiceCatalogService {
     public ServiceView create(UUID barberId, CreateService request) {
         String name = normalizeName(request.name());
         BigDecimal price = request.defaultPrice();
-        IconKey icon = request.iconKey() == null ? IconKey.SCISSORS : request.iconKey();
+        IconKey icon = request.iconKey() == null
+                ? (request.isHaircut() ? IconKey.SCISSORS : IconKey.BEARD) : request.iconKey();
         boolean active = request.active() == null || request.active();
         return jdbc.queryForObject("INSERT INTO services "
                         + "(barber_id,name,duration_minutes,default_price,is_haircut,active,icon_key) "
