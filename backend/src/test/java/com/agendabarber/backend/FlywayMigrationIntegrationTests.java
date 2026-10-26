@@ -37,7 +37,7 @@ class FlywayMigrationIntegrationTests {
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration")
                 .load();
-        assertEquals(3, flyway.migrate().migrationsExecuted);
+        assertEquals(4, flyway.migrate().migrationsExecuted);
         assertTrue(flyway.validateWithResult().validationSuccessful);
     }
 
@@ -48,7 +48,7 @@ class FlywayMigrationIntegrationTests {
                         + "WHERE table_schema = 'public' AND table_name IN "
                         + "('users','barbers','clients','services','appointments','blocked_periods',"
                         + "'working_hours','expenses','idempotency_records')"));
-        assertEquals(3, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
+        assertEquals(4, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
         assertEquals(1, count("SELECT count(*) FROM information_schema.tables "
                 + "WHERE table_schema='public' AND table_name='auth_refresh_tokens'"));
         assertEquals(1, count("SELECT count(*) FROM pg_constraint "
@@ -128,6 +128,25 @@ class FlywayMigrationIntegrationTests {
         SQLException invalid = assertThrows(SQLException.class,
                 () -> execute("UPDATE services SET icon_key='WRONG' WHERE id=?", f.serviceId()));
         assertEquals("23514", invalid.getSQLState());
+    }
+
+
+    @Test
+    void clientCatalogMigrationAddsPhotoArchiveAndUniquePhoneConstraint() throws SQLException {
+        Fixture f = fixture();
+        assertEquals(1, count("SELECT count(*) FROM clients WHERE id='" + f.clientId()
+                + "' AND active=true AND photo_url IS NULL"));
+        execute("UPDATE clients SET photo_url='https://img.example.test/avatar.png' WHERE id=?",
+                f.clientId());
+        SQLException badPhoto = assertThrows(SQLException.class, () ->
+                execute("UPDATE clients SET photo_url='http://insecure.test/avatar.png' WHERE id=?",
+                        f.clientId()));
+        assertEquals("23514", badPhoto.getSQLState());
+        execute("UPDATE clients SET phone='31999998888' WHERE id=?", f.clientId());
+        SQLException duplicate = assertThrows(SQLException.class, () ->
+                execute("INSERT INTO clients(barber_id,name,phone) VALUES(?, 'Duplicate', '31999998888')",
+                        f.barberId()));
+        assertEquals("23505", duplicate.getSQLState());
     }
 
     private static Fixture fixture() throws SQLException {

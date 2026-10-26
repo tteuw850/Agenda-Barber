@@ -4,6 +4,7 @@ import com.agendabarber.backend.auth.AuthService;
 import com.agendabarber.backend.auth.AuthSessionService;
 import com.agendabarber.backend.auth.LoginRateLimiter;
 import com.agendabarber.backend.servicecatalog.ServiceCatalogService;
+import com.agendabarber.backend.clientcatalog.ClientCatalogService;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.HttpHeaders;
@@ -65,6 +66,21 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ServiceCatalogService.InvalidServiceUpdateException.class)
     ResponseEntity<ProblemDetail> invalidService(ServiceCatalogService.InvalidServiceUpdateException ignored) {
         return problem(HttpStatus.BAD_REQUEST, "Invalid request", "Invalid service data.");
+    }
+
+    @ExceptionHandler(ClientCatalogService.ClientNotFoundException.class)
+    ResponseEntity<ProblemDetail> unknownClient(ClientCatalogService.ClientNotFoundException ignored) {
+        return problem(HttpStatus.NOT_FOUND, "Not found", "Client not found.");
+    }
+
+    @ExceptionHandler(ClientCatalogService.InvalidClientException.class)
+    ResponseEntity<ProblemDetail> invalidClient(ClientCatalogService.InvalidClientException ignored) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid request", "Invalid client data.");
+    }
+
+    @ExceptionHandler(ClientCatalogService.DuplicatePhoneException.class)
+    ResponseEntity<ProblemDetail> duplicatePhone(ClientCatalogService.DuplicatePhoneException ignored) {
+        return problem(HttpStatus.CONFLICT, "Conflict", "Phone already registered.");
     }
 
     @ExceptionHandler(Exception.class)

@@ -13,6 +13,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.math.BigDecimal;
 import com.agendabarber.backend.scheduling.AgendaSchedulingService;
 import java.util.Base64;
@@ -88,7 +89,7 @@ class AuthSecurityIntegrationTests {
         Flyway flyway = Flyway.configure()
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration").load();
-        assertEquals(3, flyway.migrate().migrationsExecuted);
+        assertEquals(4, flyway.migrate().migrationsExecuted);
         flyway.validate();
     }
 
@@ -432,6 +433,156 @@ class AuthSecurityIntegrationTests {
                 assertTrue(result.next());
                 assertEquals("Tradicional", result.getString("service_name_snapshot"));
                 assertEquals(new BigDecimal("40.00"), result.getBigDecimal("price_snapshot"));
+            }
+        }
+    }
+
+
+    @Test
+    void clientsCrudExposesUx05FieldsAndUx06FavoritesAndSearch() throws Exception {
+        Account owner = account();
+        String jwt = tokenFor(owner);
+        assertEquals(401, get("/api/v1/clients", null).statusCode());
+        String payload = """
+                {"name":"  Ana Silva  ","phone":"+55 (31) 99999-1234",
+                 "email":"ANA@EXAMPLE.COM","birthDate":"2000-06-15",
+                 "notes":"Prefere corte curto","favorite":true,
+                 "photoUrl":"https://img.example.test/ana.png"}
+                """;
+        HttpResponse<String> created = request("POST", "/api/v1/clients", payload, jwt);
+        assertEquals(201, created.statusCode(), created.body());
+        JsonNode view = mapper.readTree(created.body());
+        String id = view.get("id").asText();
+        assertEquals("/api/v1/clients/" + id,
+                created.headers().firstValue("Location").orElse(""));
+        assertEquals("Ana Silva", view.get("name").asText());
+        assertEquals("31999991234", view.get("phone").asText());
+        assertEquals("ana@example.com", view.get("email").asText());
+        assertEquals("2000-06-15", view.get("birthDate").asText());
+        assertEquals("https://img.example.test/ana.png", view.get("photoUrl").asText());
+        assertTrue(view.get("favorite").asBoolean());
+        assertEquals(0, view.get("completedAppointments").asLong());
+        assertTrue(view.get("lastAppointmentAt").isNull());
+        assertEquals(1, mapper.readTree(get("/api/v1/clients?filter=favorites", jwt).body()).size());
+        assertEquals(1, mapper.readTree(get("/api/v1/clients?search=ana", jwt).body()).size());
+        assertEquals(1, mapper.readTree(get("/api/v1/clients?search=99991234", jwt).body()).size());
+        assertEquals(0, mapper.readTree(get("/api/v1/clients?filter=recent", jwt).body()).size());
+        HttpResponse<String> edit = request("PATCH", "/api/v1/clients/" + id,
+                "{\"favorite\":false,\"email\":null,\"photoUrl\":null,\"notes\":null}", jwt);
+        assertEquals(200, edit.statusCode(), edit.body());
+        JsonNode changed = mapper.readTree(edit.body());
+        assertFalse(changed.get("favorite").asBoolean());
+        assertTrue(changed.get("email").isNull());
+        assertTrue(changed.get("photoUrl").isNull());
+        assertTrue(changed.get("notes").isNull());
+        assertEquals(0, mapper.readTree(get("/api/v1/clients?filter=favorites", jwt).body()).size());
+        assertEquals(200, get("/api/v1/clients/" + id, jwt).statusCode());
+    }
+
+    @Test
+    void clientsRejectInvalidInputsAndUnknownPatches() throws Exception {
+        Account a = account();
+        String jwt = tokenFor(a);
+        List<String> bad = List.of(
+                "{\"name\":\"   \"}",
+                "{\"name\":\"x\",\"phone\":\"123\"}",
+                "{\"name\":\"x\",\"phone\":\"31(9)INVALID\"}",
+                "{\"name\":\"x\",\"email\":\"bad-email\"}",
+                "{\"name\":\"x\",\"birthDate\":\"2099-01-01\"}",
+                "{\"name\":\"x\",\"photoUrl\":\"http://images.invalid/a.png\"}",
+                "{\"name\":\"x\",\"notes\":\"" + "x".repeat(4001) + "\"}"
+        );
+        for (String payload : bad) {
+            assertEquals(400, request("POST", "/api/v1/clients", payload, jwt).statusCode(),
+                    payload.substring(0, Math.min(120, payload.length())));
+        }
+        HttpResponse<String> created = request("POST", "/api/v1/clients", "{\"name\":\"Test\"}", jwt);
+        assertEquals(201, created.statusCode());
+        String path = "/api/v1/clients/" + mapper.readTree(created.body()).get("id").asText();
+        assertEquals(400, request("PATCH", path, "{}", jwt).statusCode());
+        assertEquals(400, request("PATCH", path, "{\"name\":null}", jwt).statusCode());
+        assertEquals(400, request("PATCH", path, "{\"favorite\":null}", jwt).statusCode());
+        assertEquals(400, request("PATCH", path, "{\"unknown\":123}", jwt).statusCode());
+        assertEquals(400, request("PATCH", path, "{\"name\":\" \"}", jwt).statusCode());
+        assertEquals(400, request("PATCH", path, "{\"birthDate\":\"bad\"}", jwt).statusCode());
+        assertEquals(400, get("/api/v1/clients?filter=unknown", jwt).statusCode());
+        assertEquals(400, get("/api/v1/clients?limit=101", jwt).statusCode());
+        assertEquals(400, get("/api/v1/clients?offset=-1", jwt).statusCode());
+    }
+
+    @Test
+    void clientsAreScopedByBarberAndPhoneDuplicatesReturn409() throws Exception {
+        Account a = account();
+        Account b = account();
+        String jwtA = tokenFor(a);
+        String jwtB = tokenFor(b);
+        String payload = "{\"name\":\"Cliente\",\"phone\":\"(31) 98888-7777\"}";
+        HttpResponse<String> created = request("POST", "/api/v1/clients", payload, jwtA);
+        assertEquals(201, created.statusCode());
+        String id = mapper.readTree(created.body()).get("id").asText();
+        String path = "/api/v1/clients/" + id;
+        assertEquals(409, request("POST", "/api/v1/clients",
+                "{\"name\":\"Duplicado\",\"phone\":\"31988887777\"}", jwtA).statusCode());
+        assertEquals(201, request("POST", "/api/v1/clients", payload, jwtB).statusCode());
+        assertEquals(0, mapper.readTree(get("/api/v1/clients?search=Cliente", jwtB).body()).size() - 1);
+        assertEquals(404, get(path, jwtB).statusCode());
+        assertEquals(404, request("PATCH", path, "{\"favorite\":true}", jwtB).statusCode());
+        assertEquals(404, request("DELETE", path, null, jwtB).statusCode());
+        assertEquals(204, request("DELETE", path, null, jwtA).statusCode());
+        assertEquals(404, get(path, jwtA).statusCode());
+        assertEquals(404, request("DELETE", path, null, jwtA).statusCode());
+        assertEquals(0, mapper.readTree(get("/api/v1/clients", jwtA).body()).size());
+    }
+
+    @Test
+    void recentClientsCountOnlyCompletedAppointmentsAndSoftDeletePreservesHistory() throws Exception {
+        Account a = account();
+        String jwt = tokenFor(a);
+        String first = "{\"name\":\"Primeiro\",\"phone\":\"31999998888\",\"favorite\":true}";
+        HttpResponse<String> created = request("POST", "/api/v1/clients", first, jwt);
+        assertEquals(201, created.statusCode());
+        UUID firstId = UUID.fromString(mapper.readTree(created.body()).get("id").asText());
+        HttpResponse<String> second = request("POST", "/api/v1/clients",
+                "{\"name\":\"Segundo\"}", jwt);
+        assertEquals(201, second.statusCode());
+        UUID secondId = UUID.fromString(mapper.readTree(second.body()).get("id").asText());
+        UUID serviceId = UUID.randomUUID();
+        update("INSERT INTO services(id,barber_id,name,duration_minutes,default_price)"
+                + " VALUES(?,?,'Corte',30,30)", serviceId, a.barber());
+        update("INSERT INTO appointments(barber_id,client_id,service_id,starts_at,ends_at,"
+                + "service_name_snapshot,price_snapshot,status,completed_at)"
+                + " VALUES(?,?,?,?,?,'Corte',30,'COMPLETED'::appointment_status,now())",
+                a.barber(), firstId, serviceId, OffsetDateTime.parse("2025-03-01T13:00:00Z"),
+                OffsetDateTime.parse("2025-03-01T13:30:00Z"));
+        update("INSERT INTO appointments(barber_id,client_id,service_id,starts_at,ends_at,"
+                + "service_name_snapshot,price_snapshot,status)"
+                + " VALUES(?,?,?,?,?,'Corte',30,'CANCELLED'::appointment_status)",
+                a.barber(), firstId, serviceId, OffsetDateTime.parse("2025-03-02T13:00:00Z"),
+                OffsetDateTime.parse("2025-03-02T13:30:00Z"));
+        List<String> resultNames = new java.util.ArrayList<>();
+        JsonNode recent = mapper.readTree(get("/api/v1/clients?filter=recent", jwt).body());
+        for (JsonNode row : recent) {
+            resultNames.add(row.get("name").asText());
+        }
+        assertEquals(List.of("Primeiro"), resultNames);
+        JsonNode item = recent.get(0);
+        assertEquals(1L, item.get("completedAppointments").asLong());
+        assertEquals(Instant.parse("2025-03-01T13:00:00Z"),
+                Instant.parse(item.get("lastAppointmentAt").asText()));
+        assertEquals(2, mapper.readTree(get("/api/v1/clients?filter=all", jwt).body()).size());
+        assertEquals(1, mapper.readTree(get("/api/v1/clients?limit=1", jwt).body()).size());
+        assertEquals(1, mapper.readTree(get("/api/v1/clients?offset=1", jwt).body()).size());
+        assertEquals(204, request("DELETE", "/api/v1/clients/" + firstId, null, jwt).statusCode());
+        assertEquals(0, mapper.readTree(get("/api/v1/clients?filter=recent", jwt).body()).size());
+        assertEquals(200, get("/api/v1/clients/" + secondId, jwt).statusCode());
+        try (Connection db = database();
+                PreparedStatement statement = db.prepareStatement(
+                        "SELECT count(*) FROM appointments WHERE barber_id=? AND client_id=?")) {
+            statement.setObject(1, a.barber());
+            statement.setObject(2, firstId);
+            try (var rs = statement.executeQuery()) {
+                assertTrue(rs.next());
+                assertEquals(2, rs.getInt(1));
             }
         }
     }
