@@ -27,13 +27,28 @@ Resposta: id, name, durationMinutes, defaultPrice (BRL, decimal exato),
 isHaircut, active, iconKey, createdAt e updatedAt (UTC ISO-8601).
 Valores de iconKey: SCISSORS, BEARD, COMBO, EYEBROW, CHILD, OTHER.
 O Android escolhe o icone e o estilo visual associado a chave; a API
-nao envia cores nem recursos graficos. Icone omitido: SCISSORS.
+nao envia cores nem recursos graficos. Na criacao, icone omitido:
+SCISSORS para isHaircut=true e BEARD para isHaircut=false.
+Servicos como sobrancelha devem enviar iconKey=EYEBROW explicitamente.
+PATCH sem iconKey preserva o icone existente, mesmo quando isHaircut
+muda; para trocar ambos, enviar os dois campos.
 Ativo omitido na criacao: true. PATCH aceita campos parciais, mas nunca vazio.
 
 Validacoes: nome nao vazio apos trim (ate 150 caracteres),
 durationMinutes 1..480; defaultPrice >= 0, ate 10 digitos inteiros
 e 2 casas decimais; flag isHaircut obrigatoria na criacao.
 Campos invalidos geram HTTP 400 e mensagem generica.
+
+## Precos para UX-04 e UX-07 no Android
+
+defaultPrice e um JSON numerico decimal; por exemplo, 45.5 e 45.50
+sao o mesmo valor. Nao usar Float/Double para dinheiro nem exigir
+zeros finais no JSON. Na UI, converter para BigDecimal e formatar
+em pt-BR sempre com duas casas decimais e simbolo R$; existe um
+formatador reutilizavel no aplicativo (ServicePriceFormatter.kt).
+Exemplos: 45.5 -> R$ 45,50 e 1234.5 -> R$ 1.234,50.
+O preenchimento automatico dos campos da tela UX-04 e a tela UX-07
+ainda dependem da integracao Jetpack Compose/Retrofit.
 
 ## Historico e integridade
 

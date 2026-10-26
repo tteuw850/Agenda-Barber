@@ -385,8 +385,18 @@ class AuthSecurityIntegrationTests {
         HttpResponse<String> created = request("POST", "/api/v1/services", base, jwt);
         assertEquals(201, created.statusCode(), created.body());
         JsonNode item = mapper.readTree(created.body());
-        assertEquals("SCISSORS", item.get("iconKey").asText());
+        assertEquals("BEARD", item.get("iconKey").asText());
         String url = "/api/v1/services/" + item.get("id").asText();
+        HttpResponse<String> haircut = request("POST", "/api/v1/services",
+                "{\"name\":\"Corte Social\",\"durationMinutes\":30,"
+                        + "\"defaultPrice\":40.00,\"isHaircut\":true}", jwt);
+        assertEquals(201, haircut.statusCode(), haircut.body());
+        assertEquals("SCISSORS", mapper.readTree(haircut.body()).get("iconKey").asText());
+        HttpResponse<String> eyebrow = request("POST", "/api/v1/services",
+                "{\"name\":\"Sobrancelha\",\"durationMinutes\":15,"
+                        + "\"defaultPrice\":15.00,\"isHaircut\":false,\"iconKey\":\"EYEBROW\"}", jwt);
+        assertEquals(201, eyebrow.statusCode(), eyebrow.body());
+        assertEquals("EYEBROW", mapper.readTree(eyebrow.body()).get("iconKey").asText());
         assertEquals(400, request("PATCH", url, "{}", jwt).statusCode());
         assertEquals(400, request("PATCH", url, "{\"name\":\"   \"}", jwt).statusCode());
         assertEquals(400, request("PATCH", url, "{\"defaultPrice\":10.001}", jwt).statusCode());
