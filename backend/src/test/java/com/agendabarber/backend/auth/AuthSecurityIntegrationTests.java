@@ -80,7 +80,7 @@ class AuthSecurityIntegrationTests {
         Flyway flyway = Flyway.configure()
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration").load();
-        assertEquals(1, flyway.migrate().migrationsExecuted);
+        assertEquals(2, flyway.migrate().migrationsExecuted);
         flyway.validate();
     }
 
@@ -186,6 +186,69 @@ class AuthSecurityIntegrationTests {
         }
         assertThrows(IllegalStateException.class,
                 () -> new AuthJwtConfig().jwtKeyMaterial(new org.springframework.mock.env.MockEnvironment()));
+    }
+
+    @Test
+    void refreshRotatesSingleUseTokenAndNeverStoresItsRawValue() throws Exception {
+        Account a = account();
+        JsonNode initial = mapper.readTree(login(a.email(), PASSWORD).body());
+        String refresh = initial.get("refreshToken").asText();
+        HttpResponse<String> response = refresh(refresh);
+        assertEquals(200, response.statusCode());
+        JsonNode rotated = mapper.readTree(response.body());
+        assertNotEquals(refresh, rotated.get("refreshToken").asText());
+        assertEquals(900, rotated.get("expiresInSeconds").asInt());
+        assertEquals(1209600, rotated.get("refreshExpiresInSeconds").asInt());
+        assertEquals(200, get("/api/v1/auth/me", rotated.get("accessToken").asText()).statusCode());
+        try (Connection db = database();
+                PreparedStatement query = db.prepareStatement(
+                        "SELECT count(*) FROM auth_refresh_tokens WHERE token_hash=?")) {
+            query.setString(1, refresh);
+            try (var result = query.executeQuery()) {
+                assertTrue(result.next());
+                assertEquals(0, result.getInt(1));
+            }
+        }
+    }
+
+    @Test
+    void replayRevokesEntireTokenFamilyIncludingLatestJwt() throws Exception {
+        Account a = account();
+        JsonNode first = mapper.readTree(login(a.email(), PASSWORD).body());
+        String oldRefresh = first.get("refreshToken").asText();
+        JsonNode next = mapper.readTree(refresh(oldRefresh).body());
+        assertEquals(401, refresh(oldRefresh).statusCode());
+        assertEquals(401, refresh(next.get("refreshToken").asText()).statusCode());
+        assertEquals(401, get("/api/v1/auth/me", next.get("accessToken").asText()).statusCode());
+    }
+
+    @Test
+    void logoutRevokesOneSessionAndItsJwtButNotAnotherSession() throws Exception {
+        Account a = account();
+        JsonNode first = mapper.readTree(login(a.email(), PASSWORD).body());
+        JsonNode second = mapper.readTree(login(a.email(), PASSWORD).body());
+        assertEquals(204, request("POST", "/api/v1/auth/logout", "{}", first.get("accessToken").asText())
+                .statusCode());
+        assertEquals(401, get("/api/v1/auth/me", first.get("accessToken").asText()).statusCode());
+        assertEquals(401, refresh(first.get("refreshToken").asText()).statusCode());
+        assertEquals(200, get("/api/v1/auth/me", second.get("accessToken").asText()).statusCode());
+        assertEquals(200, refresh(second.get("refreshToken").asText()).statusCode());
+        assertEquals(401, request("POST", "/api/v1/auth/logout", "{}", null).statusCode());
+    }
+
+    @Test
+    void refreshRejectsUnknownMalformedAndInactiveAccount() throws Exception {
+        Account a = account();
+        JsonNode first = mapper.readTree(login(a.email(), PASSWORD).body());
+        assertEquals(401, refresh("bad").statusCode());
+        assertEquals(401, refresh("A".repeat(43)).statusCode());
+        update("UPDATE users SET active=false WHERE id=?", a.user());
+        assertEquals(401, refresh(first.get("refreshToken").asText()).statusCode());
+    }
+
+    private HttpResponse<String> refresh(String refreshToken) throws Exception {
+        return request("POST", "/api/v1/auth/refresh",
+                mapper.writeValueAsString(Map.of("refreshToken", refreshToken)), null);
     }
 
     private Account account() throws Exception {

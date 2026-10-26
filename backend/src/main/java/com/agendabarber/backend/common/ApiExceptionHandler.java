@@ -1,6 +1,7 @@
 package com.agendabarber.backend.common;
 
 import com.agendabarber.backend.auth.AuthService;
+import com.agendabarber.backend.auth.AuthSessionService;
 import com.agendabarber.backend.auth.LoginRateLimiter;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.security.access.AccessDeniedException;
@@ -39,6 +40,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(AuthService.InvalidLoginException.class)
     ResponseEntity<ProblemDetail> invalidCredentials(AuthService.InvalidLoginException ignored) {
         return problem(HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid credentials.");
+    }
+
+    @ExceptionHandler(AuthSessionService.InvalidSessionException.class)
+    ResponseEntity<ProblemDetail> invalidSession(AuthSessionService.InvalidSessionException ignored) {
+        return problem(HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid or expired session.");
     }
 
     @ExceptionHandler(LoginRateLimiter.RateLimitedException.class)

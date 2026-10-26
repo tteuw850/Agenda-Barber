@@ -105,16 +105,23 @@ public class AuthJwtConfig {
                 UUID userId = UUID.fromString(token.getSubject());
                 UUID barberId = UUID.fromString(token.getClaimAsString("barber_id"));
                 String role = token.getClaimAsString("role");
-                if (!"BARBER".equals(role) || token.getId() == null || token.getId().isBlank()
+                UUID sessionId = UUID.fromString(token.getClaimAsString("session_id"));
+                Object rawVersion = token.getClaim("credential_version");
+                if (!(rawVersion instanceof Number version) || !"BARBER".equals(role)
+                        || token.getId() == null || token.getId().isBlank()
                         || !token.getAudience().contains(material.audience())) {
                     return invalid();
                 }
                 Boolean active = jdbc.queryForObject(
                         "SELECT EXISTS(SELECT 1 FROM users u JOIN barbers b ON b.user_id=u.id "
-                                + "WHERE u.id=? AND b.id=? AND u.active=true AND u.role='BARBER'::user_role)",
-                        Boolean.class, userId, barberId);
+                                + "WHERE u.id=? AND b.id=? AND u.active=true "
+                                + "AND u.role='BARBER'::user_role AND u.credential_version=? "
+                                + "AND EXISTS(SELECT 1 FROM auth_refresh_tokens r "
+                                + "WHERE r.user_id=u.id AND r.session_id=? "
+                                + "AND r.revoked_at IS NULL AND r.expires_at > now()))",
+                        Boolean.class, userId, barberId, version.longValue(), sessionId);
                 return Boolean.TRUE.equals(active) ? OAuth2TokenValidatorResult.success() : invalid();
-            } catch (IllegalArgumentException error) {
+            } catch (IllegalArgumentException | NullPointerException error) {
                 return invalid();
             }
         };
