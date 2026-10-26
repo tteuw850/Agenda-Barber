@@ -47,3 +47,14 @@ without disclosing exception text or credentials. Health and Swagger are local-o
 
 Run `mvn -f backend/pom.xml --batch-mode verify`.
 The normal CI build must not require a Neon password or a live database.
+
+
+## F01-03A database integration
+
+Versioned migration: `src/main/resources/db/migration/V1__create_initial_schema.sql`.
+Disposable PostgreSQL 17 via Testcontainers verifies Flyway migrate/validate and constraints.
+Run `mvn -f backend/pom.xml verify` with Docker Engine running. No Neon credentials are needed.
+Default and Neon profiles keep automatic Flyway disabled. A separately approved direct
+connection with a migration identity is needed for Neon schema rollout.
+Preserve JPA ddl-auto=none until entities are added; never use ddl-auto=update.
+Cross-table blocked-period conflicts require application transactions and locking.
