@@ -251,6 +251,31 @@ class AuthSecurityIntegrationTests {
                 mapper.writeValueAsString(Map.of("refreshToken", refreshToken)), null);
     }
 
+    @Test
+    void changingCredentialVersionInvalidatesAccessAndRefreshTokens() throws Exception {
+        Account a = account();
+        JsonNode credentials = mapper.readTree(login(a.email(), PASSWORD).body());
+        String access = credentials.get("accessToken").asText();
+        String refresh = credentials.get("refreshToken").asText();
+        assertEquals(200, get("/api/v1/auth/me", access).statusCode());
+        update("UPDATE users SET credential_version=credential_version+1 WHERE id=?", a.user());
+        assertEquals(401, get("/api/v1/auth/me", access).statusCode());
+        assertEquals(401, refresh(refresh).statusCode());
+    }
+
+    @Test
+    void replayRevokesOnlyAffectedSessionAndKeepsIndependentLogin() throws Exception {
+        Account a = account();
+        JsonNode first = mapper.readTree(login(a.email(), PASSWORD).body());
+        JsonNode independent = mapper.readTree(login(a.email(), PASSWORD).body());
+        String used = first.get("refreshToken").asText();
+        JsonNode rotated = mapper.readTree(refresh(used).body());
+        assertEquals(401, refresh(used).statusCode());
+        assertEquals(401, get("/api/v1/auth/me", rotated.get("accessToken").asText()).statusCode());
+        assertEquals(200, get("/api/v1/auth/me", independent.get("accessToken").asText()).statusCode());
+        assertEquals(200, refresh(independent.get("refreshToken").asText()).statusCode());
+    }
+
     private Account account() throws Exception {
         UUID user = UUID.randomUUID();
         UUID barber = UUID.randomUUID();
