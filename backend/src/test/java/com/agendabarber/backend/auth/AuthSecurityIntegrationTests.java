@@ -17,6 +17,11 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -26,6 +31,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.parameters.P;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
@@ -80,7 +86,7 @@ class AuthSecurityIntegrationTests {
         Flyway flyway = Flyway.configure()
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration").load();
-        assertEquals(1, flyway.migrate().migrationsExecuted);
+        assertEquals(2, flyway.migrate().migrationsExecuted);
         flyway.validate();
     }
 
@@ -188,6 +194,121 @@ class AuthSecurityIntegrationTests {
                 () -> new AuthJwtConfig().jwtKeyMaterial(new org.springframework.mock.env.MockEnvironment()));
     }
 
+    @Test
+    void refreshRotatesSingleUseTokenAndNeverStoresItsRawValue() throws Exception {
+        Account a = account();
+        JsonNode initial = mapper.readTree(login(a.email(), PASSWORD).body());
+        String refresh = initial.get("refreshToken").asText();
+        HttpResponse<String> response = refresh(refresh);
+        assertEquals(200, response.statusCode());
+        JsonNode rotated = mapper.readTree(response.body());
+        assertNotEquals(refresh, rotated.get("refreshToken").asText());
+        assertEquals(900, rotated.get("expiresInSeconds").asInt());
+        assertEquals(1209600, rotated.get("refreshExpiresInSeconds").asInt());
+        assertEquals(200, get("/api/v1/auth/me", rotated.get("accessToken").asText()).statusCode());
+        try (Connection db = database();
+                PreparedStatement query = db.prepareStatement(
+                        "SELECT count(*) FROM auth_refresh_tokens WHERE token_hash=?")) {
+            query.setString(1, refresh);
+            try (var result = query.executeQuery()) {
+                assertTrue(result.next());
+                assertEquals(0, result.getInt(1));
+            }
+        }
+    }
+
+    @Test
+    void replayRevokesEntireTokenFamilyIncludingLatestJwt() throws Exception {
+        Account a = account();
+        JsonNode first = mapper.readTree(login(a.email(), PASSWORD).body());
+        String oldRefresh = first.get("refreshToken").asText();
+        JsonNode next = mapper.readTree(refresh(oldRefresh).body());
+        assertEquals(401, refresh(oldRefresh).statusCode());
+        assertEquals(401, refresh(next.get("refreshToken").asText()).statusCode());
+        assertEquals(401, get("/api/v1/auth/me", next.get("accessToken").asText()).statusCode());
+    }
+
+    @Test
+    void logoutRevokesOneSessionAndItsJwtButNotAnotherSession() throws Exception {
+        Account a = account();
+        JsonNode first = mapper.readTree(login(a.email(), PASSWORD).body());
+        JsonNode second = mapper.readTree(login(a.email(), PASSWORD).body());
+        assertEquals(204, request("POST", "/api/v1/auth/logout", "{}", first.get("accessToken").asText())
+                .statusCode());
+        assertEquals(401, get("/api/v1/auth/me", first.get("accessToken").asText()).statusCode());
+        assertEquals(401, refresh(first.get("refreshToken").asText()).statusCode());
+        assertEquals(200, get("/api/v1/auth/me", second.get("accessToken").asText()).statusCode());
+        assertEquals(200, refresh(second.get("refreshToken").asText()).statusCode());
+        assertEquals(401, request("POST", "/api/v1/auth/logout", "{}", null).statusCode());
+    }
+
+    @Test
+    void refreshRejectsUnknownMalformedAndInactiveAccount() throws Exception {
+        Account a = account();
+        JsonNode first = mapper.readTree(login(a.email(), PASSWORD).body());
+        assertEquals(401, refresh("bad").statusCode());
+        assertEquals(401, refresh("A".repeat(43)).statusCode());
+        update("UPDATE users SET active=false WHERE id=?", a.user());
+        assertEquals(401, refresh(first.get("refreshToken").asText()).statusCode());
+    }
+
+    private HttpResponse<String> refresh(String refreshToken) throws Exception {
+        return request("POST", "/api/v1/auth/refresh",
+                mapper.writeValueAsString(Map.of("refreshToken", refreshToken)), null);
+    }
+
+    @Test
+    void changingCredentialVersionInvalidatesAccessAndRefreshTokens() throws Exception {
+        Account a = account();
+        JsonNode credentials = mapper.readTree(login(a.email(), PASSWORD).body());
+        String access = credentials.get("accessToken").asText();
+        String refresh = credentials.get("refreshToken").asText();
+        assertEquals(200, get("/api/v1/auth/me", access).statusCode());
+        update("UPDATE users SET credential_version=credential_version+1 WHERE id=?", a.user());
+        assertEquals(401, get("/api/v1/auth/me", access).statusCode());
+        assertEquals(401, refresh(refresh).statusCode());
+    }
+
+    @Test
+    void replayRevokesOnlyAffectedSessionAndKeepsIndependentLogin() throws Exception {
+        Account a = account();
+        JsonNode first = mapper.readTree(login(a.email(), PASSWORD).body());
+        JsonNode independent = mapper.readTree(login(a.email(), PASSWORD).body());
+        String used = first.get("refreshToken").asText();
+        JsonNode rotated = mapper.readTree(refresh(used).body());
+        assertEquals(401, refresh(used).statusCode());
+        assertEquals(401, get("/api/v1/auth/me", rotated.get("accessToken").asText()).statusCode());
+        assertEquals(200, get("/api/v1/auth/me", independent.get("accessToken").asText()).statusCode());
+        assertEquals(200, refresh(independent.get("refreshToken").asText()).statusCode());
+    }
+
+    @Test
+    void simultaneousRefreshRequestsPermitOnlyOneRotationAndRevokeOnReplay() throws Exception {
+        Account a = account();
+        JsonNode first = mapper.readTree(login(a.email(), PASSWORD).body());
+        String raw = first.get("refreshToken").asText();
+        CountDownLatch go = new CountDownLatch(1);
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<HttpResponse<String>> left = executor.submit(() -> {
+                go.await(15, TimeUnit.SECONDS);
+                return refresh(raw);
+            });
+            Future<HttpResponse<String>> right = executor.submit(() -> {
+                go.await(15, TimeUnit.SECONDS);
+                return refresh(raw);
+            });
+            go.countDown();
+            HttpResponse<String> one = left.get(60, TimeUnit.SECONDS);
+            HttpResponse<String> two = right.get(60, TimeUnit.SECONDS);
+            assertEquals(1, List.of(one, two).stream().filter(r -> r.statusCode() == 200).count());
+            assertEquals(1, List.of(one, two).stream().filter(r -> r.statusCode() == 401).count());
+            String winner = one.statusCode() == 200 ? one.body() : two.body();
+            JsonNode rotated = mapper.readTree(winner);
+            assertEquals(401, refresh(rotated.get("refreshToken").asText()).statusCode());
+            assertEquals(401, get("/api/v1/auth/me", rotated.get("accessToken").asText()).statusCode());
+        }
+    }
+
     private Account account() throws Exception {
         UUID user = UUID.randomUUID();
         UUID barber = UUID.randomUUID();
@@ -277,6 +398,19 @@ class AuthSecurityIntegrationTests {
         @Bean
         ScopeProbeController scopeProbeController() {
             return new ScopeProbeController();
+        }
+
+        @Bean
+        @Primary
+        LoginRateLimiter isolatedLoginLimiter(java.time.Clock clock) {
+            // Keep the per-account limiter real, but isolate request IP counters
+            // by account; otherwise unrelated test methods collectively trip 429.
+            return new LoginRateLimiter(clock) {
+                @Override
+                public synchronized void check(String email, String address) {
+                    super.check(email, email + "|" + address);
+                }
+            };
         }
     }
 

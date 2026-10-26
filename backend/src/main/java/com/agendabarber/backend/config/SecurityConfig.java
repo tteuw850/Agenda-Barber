@@ -35,7 +35,8 @@ public class SecurityConfig {
                         "/swagger-ui/**").permitAll();
                 authorize.anyRequest().denyAll();
             } else {
-                authorize.requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll();
+                authorize.requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/refresh")
+                        .permitAll();
                 authorize.anyRequest().authenticated();
             }
         });
