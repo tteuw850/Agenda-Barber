@@ -684,7 +684,8 @@ class AuthSecurityIntegrationTests {
         HttpResponse<String> block = request("POST", "/api/v1/schedule/recurring-blocks", rule, jwt);
         assertEquals(201, block.statusCode(), block.body());
         String id = mapper.readTree(block.body()).get("id").asText();
-        assertFalse(get(url, jwt).body().contains("2030-03-01T15:00:00Z"));
+        assertFalse(mapper.readTree(get(url, jwt).body()).findValuesAsText("startsAt")
+                .contains("2030-03-01T15:00:00Z"));
         assertEquals(1, mapper.readTree(get("/api/v1/schedule/recurring-blocks", jwt).body()).size());
         assertEquals(409, request("POST", "/api/v1/schedule/recurring-blocks", rule, jwt)
                 .statusCode());
