@@ -42,18 +42,20 @@ Snapshot production: snap-orange-dust-b6vve8wx
 **Isso ainda não comprova HTTP real nem uso no APK:** nenhuma API
 HTTPS foi publicada e não existem contas de barbeiro cadastradas.
 
-## Publicação HTTPS proposta: Railway
+## Publicação HTTPS proposta: Render ou Railway
 
 Hospedar o backend Java (não o APK Android) usando Railway ou outra
 plataforma Java compatível. O Dockerfile de produção está em
 backend/Dockerfile e usa JRE 21, imagem multi-stage e usuário sem root.
 
-1. Conectar a Railway, criar projeto e adicionar GitHub
+1. Conectar Render ou Railway, criar serviço Web e vincular GitHub
    tteuw850/Agenda-Barber com Root Directory /backend.
-2. Selecionar produção (main) após CI aprovado e configurar
-   saúde GET /actuator/health. Essa verificação não consulta
-   Neon continuamente.
-3. Criar variáveis **protegidas da Railway**:
+   O Dockerfile preservado da main já foi criado para Render;
+   em Railway o mesmo Dockerfile pode ser usado.
+2. Selecionar main após CI aprovado e configurar
+   o health check GET /actuator/health no serviço.
+   Ele não consulta Neon continuamente.
+3. Criar variáveis **protegidas do provedor de hospedagem**:
    SPRING_PROFILES_ACTIVE=neon,
    NEON_JDBC_URL (JDBC TLS do banco agenda_barber),
    NEON_DB_USERNAME=agenda_app_prod,
