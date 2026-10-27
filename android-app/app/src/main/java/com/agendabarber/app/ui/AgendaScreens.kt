@@ -1,6 +1,5 @@
 package com.agendabarber.app.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,30 +8,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -121,144 +112,11 @@ fun AgendaApp() {
         return
     }
     val api = remember(url) { AgendaApiFactory.create(url) }
-    var screen by remember { mutableStateOf("Agenda") }
-    var chosen by remember { mutableStateOf<String?>(null) }
-    var day by remember { mutableStateOf(LocalDate.now().toString()) }
-    var period by remember { mutableStateOf("day") }
-    var filter by remember { mutableStateOf("all") }
-    var revision by remember { mutableStateOf(0) }
-    var appointments by remember { mutableStateOf(emptyList<AppointmentView>()) }
-    var message by remember { mutableStateOf("") }
-    var loading by remember { mutableStateOf(false) }
-
-    LaunchedEffect(currentToken, day, period, filter, revision, screen) {
-        if (screen == "Agenda" && validDate(day)) {
-            loading = true
-            try {
-                appointments = api.appointments(currentToken, day, period, filter)
-                message = ""
-            } catch (e: Exception) {
-                appointments = emptyList()
-                message = apiMessage(e)
-            } finally {
-                loading = false
-            }
-        }
-    }
-    Scaffold(
-        bottomBar = {
-            NavigationBar {
-                listOf("Agenda", "Clientes", "+", "Estatísticas", "Mais").forEach { tab ->
-                    NavigationBarItem(
-                        selected = screen == (if (tab == "+") "Novo" else tab),
-                        onClick = {
-                            chosen = null
-                            screen = if (tab == "+") "Novo" else tab
-                        },
-                        icon = { Text(if (tab == "+") "+" else "●") },
-                        label = { Text(tab, maxLines = 1) }
-                    )
-                }
-            }
-        }
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("Agenda Barber", style = MaterialTheme.typography.titleLarge)
-                TextButton(onClick = {
-                    token = null
-                    appointments = emptyList()
-                    chosen = null
-                }) { Text("Sair") }
-            }
-            when {
-                chosen != null -> AppointmentDetails(
-                    api = api,
-                    token = currentToken,
-                    id = chosen!!,
-                    onBack = {
-                        chosen = null
-                        revision++
-                    }
-                )
-                screen == "Novo" -> BookingForm(
-                    api = api,
-                    token = currentToken,
-                    onSaved = {
-                        screen = "Agenda"
-                        revision++
-                    }
-                )
-                screen == "Agenda" -> {
-                    Text("Agenda", style = MaterialTheme.typography.headlineSmall)
-                    OutlinedTextField(
-                        value = day,
-                        onValueChange = { day = it },
-                        label = { Text("Data AAAA-MM-DD") },
-                        isError = !validDate(day),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("day" to "Dia", "week" to "Semana", "month" to "Mês").forEach { option ->
-                            FilterChip(
-                                selected = period == option.first,
-                                onClick = { period = option.first },
-                                label = { Text(option.second) }
-                            )
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("all" to "Todos", "SCHEDULED" to "Agendados", "COMPLETED" to "Concluídos")
-                            .forEach { option ->
-                                FilterChip(
-                                    selected = filter == option.first,
-                                    onClick = { filter = option.first },
-                                    label = { Text(option.second) }
-                                )
-                            }
-                    }
-                    Row {
-                        OutlinedButton(onClick = { revision++ }) { Text("Atualizar") }
-                        TextButton(onClick = { screen = "Novo" }) { Text("+ Agendar") }
-                    }
-                    if (loading) CircularProgressIndicator()
-                    if (message.isNotBlank()) Text(message, color = MaterialTheme.colorScheme.error)
-                    if (appointments.isEmpty() && !loading && message.isBlank()) {
-                        Text("Nenhum atendimento neste período.")
-                    }
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(appointments, key = { it.id }) { appointment ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth().clickable { chosen = appointment.id }
-                            ) {
-                                Column(Modifier.padding(16.dp)) {
-                                    Text(appointment.clientName, style = MaterialTheme.typography.titleMedium)
-                                    Text(appointment.serviceName + " • " + appointment.durationMinutes + " min")
-                                    Text(displayTime(appointment.startsAt))
-                                    Text(formatBrl(appointment.price))
-                                    Text(
-                                        statusText(appointment.status),
-                                        color = statusColor(appointment.status)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                else -> Column(Modifier.padding(20.dp)) {
-                    Text(screen, style = MaterialTheme.typography.headlineSmall)
-                    Text("Esta aba será conectada em uma etapa posterior. Use Agenda e +.")
-                }
-            }
-        }
-    }
+    BarberAuthenticatedApp(api, currentToken, onLogout = { token = null })
 }
 
 @Composable
-private fun AppointmentDetails(api: AgendaApi, token: String, id: String, onBack: () -> Unit) {
+internal fun AppointmentDetails(api: AgendaApi, token: String, id: String, onBack: () -> Unit) {
     var detail by remember(id) { mutableStateOf<AppointmentView?>(null) }
     var events by remember(id) { mutableStateOf(emptyList<HistoryItem>()) }
     var revision by remember(id) { mutableStateOf(0) }
@@ -377,7 +235,7 @@ private fun AppointmentDetails(api: AgendaApi, token: String, id: String, onBack
 }
 
 @Composable
-private fun BookingForm(api: AgendaApi, token: String, onSaved: () -> Unit) {
+internal fun BookingForm(api: AgendaApi, token: String, onSaved: () -> Unit) {
     val scope = rememberCoroutineScope()
     var day by remember { mutableStateOf(LocalDate.now().toString()) }
     var query by remember { mutableStateOf("") }
@@ -576,7 +434,7 @@ private fun BookingForm(api: AgendaApi, token: String, onSaved: () -> Unit) {
     }
 }
 
-private fun statusColor(status: String): Color = when (status) {
+internal fun statusColor(status: String): Color = when (status) {
     "COMPLETED" -> BarberCompleted
     "IN_PROGRESS" -> BarberInProgress
     "CANCELLED" -> BarberCancelAction
