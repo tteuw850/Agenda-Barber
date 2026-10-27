@@ -42,6 +42,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,16 +50,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.room.Room
+import com.agendabarber.app.cache.AgendaCacheDatabase
+import com.agendabarber.app.cache.AgendaRepository
+import com.agendabarber.app.cache.AgendaViewModel
 import com.agendabarber.app.network.AgendaApi
 import com.agendabarber.app.network.AppointmentView
 import com.agendabarber.app.network.ClientView
@@ -77,7 +84,10 @@ import com.agendabarber.app.ui.theme.StatsCancellationsCard
 import com.agendabarber.app.ui.theme.StatsCutsCard
 import com.agendabarber.app.ui.theme.StatsRevenueCard
 import com.agendabarber.app.ui.theme.StatsTicketCard
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
 /** Routes match the ten UX references. Inner forms intentionally have no bottom navigation. */
@@ -100,6 +110,18 @@ internal fun BarberAuthenticatedApp(
     token: String,
     onLogout: () -> Unit
 ) {
+    val context = LocalContext.current
+    val database = remember {
+        Room.databaseBuilder(
+            context.applicationContext,
+            AgendaCacheDatabase::class.java,
+            "agenda-barber-read-cache"
+        ).build()
+    }
+    val repository = remember(api, database) {
+        AgendaRepository(api, database.agendaCacheDao())
+    }
+    val scope = rememberCoroutineScope()
     val navigation = rememberNavController()
     val entry by navigation.currentBackStackEntryAsState()
     val route = entry?.destination?.route ?: BarberRoute.AGENDA
@@ -130,7 +152,7 @@ internal fun BarberAuthenticatedApp(
         ) {
             composable(BarberRoute.AGENDA) {
                 BarberAgendaScreen(
-                    api = api,
+                    repository = repository,
                     token = token,
                     revision = revision,
                     onNew = { navigation.navigate(BarberRoute.BOOKING) },
@@ -179,7 +201,15 @@ internal fun BarberAuthenticatedApp(
                 BarberMoreScreen(
                     onServices = { navigation.navigate(BarberRoute.SERVICES) },
                     onBlocks = { navigation.navigate(BarberRoute.BLOCK_TIME) },
-                    onLogout = onLogout
+                    onLogout = {
+                        scope.launch {
+                            try {
+                                repository.clear()
+                            } finally {
+                                onLogout()
+                            }
+                        }
+                    }
                 )
             }
         }
@@ -242,7 +272,7 @@ private fun BackHeader(title: String, onBack: () -> Unit) {
 
 @Composable
 private fun BarberAgendaScreen(
-    api: AgendaApi,
+    repository: AgendaRepository,
     token: String,
     revision: Int,
     onNew: () -> Unit,
@@ -252,20 +282,13 @@ private fun BarberAgendaScreen(
     var period by remember { mutableStateOf("day") }
     var filter by remember { mutableStateOf("all") }
     var reload by remember { mutableStateOf(0) }
-    var appointments by remember { mutableStateOf(emptyList<AppointmentView>()) }
-    var error by remember { mutableStateOf("") }
-    var loading by remember { mutableStateOf(true) }
+    val agendaViewModel: AgendaViewModel = viewModel(
+        factory = remember(repository) { AgendaViewModel.Factory(repository) }
+    )
+    val state by agendaViewModel.state.collectAsState()
     LaunchedEffect(token, day, period, filter, reload, revision) {
-        if (!validDate(day)) return@LaunchedEffect
-        loading = true
-        try {
-            appointments = api.appointments(token, day, period, filter)
-            error = ""
-        } catch (failure: Exception) {
-            appointments = emptyList()
-            error = apiMessage(failure)
-        } finally {
-            loading = false
+        if (validDate(day)) {
+            agendaViewModel.refresh(token, day, period, filter)
         }
     }
     Column(
@@ -308,15 +331,22 @@ private fun BarberAgendaScreen(
             TextButton(onClick = { reload++ }) { Text("Atualizar") }
             TextButton(onClick = onNew) { Text("+ Agendar") }
         }
-        if (loading) CircularProgressIndicator()
-        if (error.isNotBlank()) {
-            Text(error, color = MaterialTheme.colorScheme.error)
+        if (state.loading) CircularProgressIndicator()
+        if (state.error.isNotBlank()) {
+            Text(state.error, color = MaterialTheme.colorScheme.error)
         }
-        if (!loading && error.isBlank() && appointments.isEmpty()) {
+        if (state.offline) {
+            val time = state.lastSyncedAt?.let {
+                DateTimeFormatter.ofPattern("dd/MM HH:mm")
+                    .format(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()))
+            } ?: "desconhecida"
+            Text("Modo offline · Última sincronização: " + time, color = BarberGold)
+        }
+        if (!state.loading && state.error.isBlank() && state.appointments.isEmpty()) {
             EmptyState("Nenhum atendimento neste período.")
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(appointments, key = { it.id }) { appointment ->
+            items(state.appointments, key = { it.id }) { appointment ->
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { onDetails(appointment.id) },
                     shape = RoundedCornerShape(16.dp)
