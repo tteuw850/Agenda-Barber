@@ -118,8 +118,10 @@ public class AppointmentService {
             throw new InvalidAppointmentException();
         }
         String fingerprint = hash(request);
-        // The unique index is the serialization point. Unlike a user-row
-        // FOR UPDATE lock, it does not invert the lock order of foreign keys.
+        // Use the same lock as schedule/block writers FIRST, then idempotency.
+        // Serializing by barber avoids a key-reservation race during concurrent POSTs.
+        jdbc.queryForObject("SELECT id FROM barbers WHERE id=? FOR UPDATE", UUID.class, barberId);
+        // The unique key additionally protects retries after an ambiguous timeout.
         int reserved = jdbc.update("INSERT INTO idempotency_records "
                         + "(user_id,idempotency_key,request_hash,operation) "
                         + "VALUES(?,?,?,'APPOINTMENT_CREATE') "
