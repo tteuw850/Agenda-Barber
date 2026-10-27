@@ -11,11 +11,13 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.stereotype.Service;
@@ -84,6 +86,80 @@ public final class AgendaSchedulingService {
         }
     }
 
+    /**
+     * Persist booking, event and idempotency outcome in ONE transaction.
+     * A unique barber-row lock serializes bookings and schedule/block writers.
+     * No intermediate reservation with nullable resource_id can become visible.
+     */
+    public UUID bookAtomic(UUID barberId, UUID userId, UUID clientId, UUID serviceId,
+                           Instant start, BigDecimal price, String notes,
+                           String key, String fingerprint) {
+        try {
+            return tx.execute(status -> {
+                ZoneId zone = lockBarber(barberId);
+                List<BookingKey> found = jdbc.query("SELECT operation,request_hash,resource_id "
+                                + "FROM idempotency_records WHERE user_id=? AND idempotency_key=?",
+                        (rs, n) -> new BookingKey(rs.getString(1), rs.getString(2),
+                                rs.getObject(3, UUID.class)), userId, key);
+                if (!found.isEmpty()) {
+                    BookingKey prior = found.get(0);
+                    if (!"APPOINTMENT_CREATE".equals(prior.operation())
+                            || !fingerprint.equals(prior.fingerprint())
+                            || prior.resourceId() == null) {
+                        throw new ScheduleConflictException(ConflictType.IDEMPOTENCY_CONFLICT);
+                    }
+                    return prior.resourceId();
+                }
+
+                Snapshot service;
+                try {
+                    service = jdbc.queryForObject("SELECT name,duration_minutes,default_price "
+                                    + "FROM services WHERE barber_id=? AND id=? AND active=true",
+                            (rs, n) -> new Snapshot(rs.getString(1), rs.getInt(2),
+                                    rs.getBigDecimal(3)), barberId, serviceId);
+                } catch (EmptyResultDataAccessException missing) {
+                    throw new IllegalArgumentException("Service not found");
+                }
+                Boolean client = jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM clients "
+                                + "WHERE id=? AND barber_id=? AND active=true)",
+                        Boolean.class, clientId, barberId);
+                if (!Boolean.TRUE.equals(client)) {
+                    throw new IllegalArgumentException("Client not found");
+                }
+                Instant end = start.plus(Duration.ofMinutes(service.minutes()));
+                requireWorkingHours(barberId, start, end, zone);
+                requireNoAppointment(barberId, start, end);
+                requireNoBlock(barberId, start, end);
+                requireNoRecurringBlock(barberId, start, end, zone);
+
+                UUID id = UUID.randomUUID();
+                jdbc.update("INSERT INTO appointments "
+                                + "(id,barber_id,client_id,service_id,starts_at,ends_at,"
+                                + "service_name_snapshot,price_snapshot,notes,status) "
+                                + "VALUES(?,?,?,?,?,?,?,?,?,'SCHEDULED'::appointment_status)",
+                        id, barberId, clientId, serviceId, utc(start), utc(end),
+                        service.name(), price == null ? service.price() : price, notes);
+                jdbc.update("INSERT INTO appointment_events "
+                                + "(barber_id,appointment_id,event_type,previous_status,new_status) "
+                                + "VALUES(?,?,'CREATED',NULL,'SCHEDULED'::appointment_status)",
+                        barberId, id);
+                jdbc.update("INSERT INTO idempotency_records "
+                                + "(user_id,idempotency_key,request_hash,operation,resource_id) "
+                                + "VALUES(?,?,?,'APPOINTMENT_CREATE',?)",
+                        userId, key, fingerprint, id);
+                return id;
+            });
+        } catch (DataIntegrityViolationException error) {
+            if (hasSqlState(error, "23P01")) {
+                throw new ScheduleConflictException(ConflictType.APPOINTMENT_OVERLAP);
+            }
+            throw error;
+        }
+    }
+
+    private record BookingKey(String operation, String fingerprint, UUID resourceId) {
+    }
+
     public UUID block(UUID barberId, Instant start, Instant end, String reason) {
         Objects.requireNonNull(barberId);
         checkRange(start, end);
@@ -97,6 +173,65 @@ public final class AgendaSchedulingService {
                             + "VALUES(?,?,?,?,?)", id, barberId, utc(start), utc(end), reason);
             return id;
         });
+    }
+
+    /** Rebook an unstarted appointment within the same barber transaction/lock discipline. */
+    public void reschedule(UUID barberId, UUID id, UUID clientId, UUID serviceId,
+                           Instant start, BigDecimal price, String notes) {
+        try {
+            tx.executeWithoutResult(status -> {
+                ZoneId zone = lockBarber(barberId);
+                String state;
+                try {
+                    state = jdbc.queryForObject(
+                            "SELECT status::text FROM appointments WHERE barber_id=? AND id=? FOR UPDATE",
+                            String.class, barberId, id);
+                } catch (EmptyResultDataAccessException ignored) {
+                    throw new IllegalArgumentException("Appointment not found");
+                }
+                if (!"SCHEDULED".equals(state)) {
+                    throw new ScheduleConflictException(ConflictType.APPOINTMENT_OVERLAP);
+                }
+                Snapshot service;
+                try {
+                    service = jdbc.queryForObject(
+                            "SELECT name,duration_minutes,default_price FROM services "
+                                    + "WHERE barber_id=? AND id=? AND active=true",
+                            (rs, n) -> new Snapshot(rs.getString(1), rs.getInt(2),
+                                    rs.getBigDecimal(3)), barberId, serviceId);
+                } catch (EmptyResultDataAccessException ignored) {
+                    throw new IllegalArgumentException("Service not found");
+                }
+                Boolean client = jdbc.queryForObject(
+                        "SELECT EXISTS(SELECT 1 FROM clients "
+                                + "WHERE id=? AND barber_id=? AND active=true)",
+                        Boolean.class, clientId, barberId);
+                if (!Boolean.TRUE.equals(client)) {
+                    throw new IllegalArgumentException("Client not found");
+                }
+                Instant end = start.plus(Duration.ofMinutes(service.minutes()));
+                requireWorkingHours(barberId, start, end, zone);
+                Boolean busy = jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM appointments "
+                                + "WHERE barber_id=? AND id<>? AND status IN ('SCHEDULED','IN_PROGRESS') "
+                                + "AND starts_at<? AND ends_at>?)",
+                        Boolean.class, barberId, id, utc(end), utc(start));
+                if (Boolean.TRUE.equals(busy)) {
+                    throw new ScheduleConflictException(ConflictType.APPOINTMENT_OVERLAP);
+                }
+                requireNoBlock(barberId, start, end);
+                requireNoRecurringBlock(barberId, start, end, zone);
+                jdbc.update("UPDATE appointments SET client_id=?,service_id=?,starts_at=?,ends_at=?,"
+                                + "service_name_snapshot=?,price_snapshot=?,notes=?,version=version+1 "
+                                + "WHERE barber_id=? AND id=?",
+                        clientId, serviceId, utc(start), utc(end),
+                        service.name(), price == null ? service.price() : price, notes, barberId, id);
+            });
+        } catch (DataIntegrityViolationException error) {
+            if (hasSqlState(error, "23P01")) {
+                throw new ScheduleConflictException(ConflictType.APPOINTMENT_OVERLAP);
+            }
+            throw error;
+        }
     }
 
     private ZoneId lockBarber(UUID barberId) {
@@ -190,7 +325,8 @@ public final class AgendaSchedulingService {
     public enum ConflictType {
         APPOINTMENT_OVERLAP,
         BLOCKED_PERIOD_OVERLAP,
-        OUTSIDE_WORKING_HOURS
+        OUTSIDE_WORKING_HOURS,
+        IDEMPOTENCY_CONFLICT
     }
 
     /** Safe domain error for future HTTP 409 conversion, not a public endpoint. */

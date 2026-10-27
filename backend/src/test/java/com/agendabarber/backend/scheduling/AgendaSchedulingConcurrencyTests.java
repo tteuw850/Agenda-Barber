@@ -48,7 +48,7 @@ class AgendaSchedulingConcurrencyTests {
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration")
                 .load();
-        assertEquals(5, flyway.migrate().migrationsExecuted);
+        assertEquals(6, flyway.migrate().migrationsExecuted);
         flyway.validate();
         scheduling = new AgendaSchedulingService(
                 new DriverManagerDataSource(postgres.getJdbcUrl(),

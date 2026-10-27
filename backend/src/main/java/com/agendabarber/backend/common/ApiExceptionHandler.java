@@ -1,5 +1,6 @@
 package com.agendabarber.backend.common;
 
+import com.agendabarber.backend.appointments.AppointmentService;
 import com.agendabarber.backend.auth.AuthService;
 import com.agendabarber.backend.auth.AuthSessionService;
 import com.agendabarber.backend.auth.LoginRateLimiter;
@@ -8,6 +9,15 @@ import com.agendabarber.backend.clientcatalog.ClientCatalogService;
 import com.agendabarber.backend.scheduleconfig.ScheduleConfigService;
 import com.agendabarber.backend.scheduling.AgendaSchedulingService;
 import jakarta.validation.ConstraintViolationException;
+import java.sql.SQLException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.TransientDataAccessException;
+import org.springframework.transaction.CannotCreateTransactionException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -20,6 +30,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ProblemDetail> invalidBody(MethodArgumentNotValidException ignored) {
@@ -99,6 +110,53 @@ public class ApiExceptionHandler {
                        AgendaSchedulingService.ScheduleConflictException.class})
     ResponseEntity<ProblemDetail> schedulingConflict(RuntimeException ignored) {
         return problem(HttpStatus.CONFLICT, "Conflict", "Requested time is unavailable.");
+    }
+
+    @ExceptionHandler(AppointmentService.AppointmentNotFoundException.class)
+    ResponseEntity<ProblemDetail> missingAppointment(AppointmentService.AppointmentNotFoundException ignored) {
+        return problem(HttpStatus.NOT_FOUND, "Not found", "Appointment or selection not found.");
+    }
+
+    @ExceptionHandler(AppointmentService.InvalidAppointmentException.class)
+    ResponseEntity<ProblemDetail> invalidAppointment(AppointmentService.InvalidAppointmentException ignored) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid request", "Invalid appointment data.");
+    }
+
+    @ExceptionHandler(AppointmentService.AppointmentConflictException.class)
+    ResponseEntity<ProblemDetail> conflictingAppointment(AppointmentService.AppointmentConflictException ignored) {
+        return problem(HttpStatus.CONFLICT, "Conflict", "Appointment conflict.");
+    }
+
+    @ExceptionHandler({MissingRequestHeaderException.class,
+                       MissingServletRequestParameterException.class,
+                       MethodArgumentTypeMismatchException.class})
+    ResponseEntity<ProblemDetail> missingOrInvalidParameter(Exception ignored) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid request", "Required parameter is invalid.");
+    }
+
+    @ExceptionHandler({CannotCreateTransactionException.class,
+                       DataAccessResourceFailureException.class,
+                       TransientDataAccessException.class})
+    ResponseEntity<ProblemDetail> unavailableDatabase(RuntimeException ignored) {
+        String sqlState = "unknown";
+        for (Throwable cause = ignored; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sql) {
+                sqlState = sql.getSQLState();
+                break;
+            }
+        }
+        LOGGER.warn("event=database_unavailable exception={} sqlstate={}",
+                ignored.getClass().getSimpleName(), sqlState);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(HttpHeaders.RETRY_AFTER, "5")
+                .body(problemBody(HttpStatus.SERVICE_UNAVAILABLE,
+                        "Service unavailable", "Storage temporarily unavailable."));
+    }
+
+    private ProblemDetail problemBody(HttpStatus status, String title, String detail) {
+        ProblemDetail body = ProblemDetail.forStatusAndDetail(status, detail);
+        body.setTitle(title);
+        return body;
     }
 
     @ExceptionHandler(Exception.class)
