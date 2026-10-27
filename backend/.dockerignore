@@ -3,6 +3,7 @@ target/
 .idea/
 .env
 .env.*
+!.env.example
 *.log
-*.p12
 *.pem
+*.key
