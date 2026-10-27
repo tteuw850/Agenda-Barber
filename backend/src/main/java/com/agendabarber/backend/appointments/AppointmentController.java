@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -59,10 +60,21 @@ public class AppointmentController {
             @AuthenticationPrincipal Jwt jwt,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody CreateAppointment request) {
-        AppointmentView created = appointments.create(
-                barber(jwt), UUID.fromString(jwt.getSubject()), idempotencyKey, request);
-        return ResponseEntity.created(URI.create("/api/v1/appointments/" + created.id()))
-                .body(created);
+        // PostgreSQL deadlocks (40P01) abort the transaction. Re-enter through
+        // the service proxy with the identical idempotency key in a fresh one.
+        for (int attempt = 0; attempt < 3; attempt++) {
+            try {
+                AppointmentView created = appointments.create(
+                        barber(jwt), UUID.fromString(jwt.getSubject()), idempotencyKey, request);
+                return ResponseEntity.created(URI.create("/api/v1/appointments/" + created.id()))
+                        .body(created);
+            } catch (PessimisticLockingFailureException deadlock) {
+                if (attempt == 2) {
+                    throw deadlock;
+                }
+            }
+        }
+        throw new IllegalStateException("Unreachable appointment retry state");
     }
 
     @PatchMapping("/{id}")
