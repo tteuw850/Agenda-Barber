@@ -69,7 +69,7 @@ fun AgendaApp() {
     if (currentToken == null) {
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.Center
         ) {
             Text("AGENDA BARBER", style = MaterialTheme.typography.headlineLarge)
             Text("Acesso exclusivo do barbeiro")
@@ -79,20 +79,20 @@ fun AgendaApp() {
                 onValueChange = { url = it },
                 label = { Text("Endereço HTTPS da API") },
                 placeholder = { Text("https://api.exemplo.com/") },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
                 label = { Text("E-mail") },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
                 label = { Text("Senha") },
                 visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth()
             )
             if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
             Button(
@@ -114,7 +114,7 @@ fun AgendaApp() {
                             busy = false
                         }
                     }
-                },
+                }
             ) { Text(if (busy) "Conectando..." else "Entrar") }
             Text("Login e senha não são salvos no dispositivo. A API precisa estar publicada.")
         }
@@ -156,16 +156,16 @@ fun AgendaApp() {
                             screen = if (tab == "+") "Novo" else tab
                         },
                         icon = { Text(if (tab == "+") "+" else "●") },
-                        label = { Text(tab, maxLines = 1) },
+                        label = { Text(tab, maxLines = 1) }
                     )
                 }
             }
-        },
+        }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text("Agenda Barber", style = MaterialTheme.typography.titleLarge)
                 TextButton(onClick = {
@@ -179,12 +179,18 @@ fun AgendaApp() {
                     api = api,
                     token = currentToken,
                     id = chosen!!,
-                    onBack = { chosen = null; revision++ },
+                    onBack = {
+                        chosen = null
+                        revision++
+                    }
                 )
                 screen == "Novo" -> BookingForm(
                     api = api,
                     token = currentToken,
-                    onSaved = { screen = "Agenda"; revision++ },
+                    onSaved = {
+                        screen = "Agenda"
+                        revision++
+                    }
                 )
                 screen == "Agenda" -> {
                     Text("Agenda", style = MaterialTheme.typography.headlineSmall)
@@ -193,14 +199,14 @@ fun AgendaApp() {
                         onValueChange = { day = it },
                         label = { Text("Data AAAA-MM-DD") },
                         isError = !validDate(day),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth()
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         listOf("day" to "Dia", "week" to "Semana", "month" to "Mês").forEach { option ->
                             FilterChip(
                                 selected = period == option.first,
                                 onClick = { period = option.first },
-                                label = { Text(option.second) },
+                                label = { Text(option.second) }
                             )
                         }
                     }
@@ -210,7 +216,7 @@ fun AgendaApp() {
                                 FilterChip(
                                     selected = filter == option.first,
                                     onClick = { filter = option.first },
-                                    label = { Text(option.second) },
+                                    label = { Text(option.second) }
                                 )
                             }
                     }
@@ -226,7 +232,7 @@ fun AgendaApp() {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(appointments, key = { it.id }) { appointment ->
                             Card(
-                                modifier = Modifier.fillMaxWidth().clickable { chosen = appointment.id },
+                                modifier = Modifier.fillMaxWidth().clickable { chosen = appointment.id }
                             ) {
                                 Column(Modifier.padding(16.dp)) {
                                     Text(appointment.clientName, style = MaterialTheme.typography.titleMedium)
@@ -235,7 +241,7 @@ fun AgendaApp() {
                                     Text(formatBrl(appointment.price))
                                     Text(
                                         statusText(appointment.status),
-                                        color = statusColor(appointment.status),
+                                        color = statusColor(appointment.status)
                                     )
                                 }
                             }
@@ -252,12 +258,7 @@ fun AgendaApp() {
 }
 
 @Composable
-private fun AppointmentDetails(
-    api: AgendaApi,
-    token: String,
-    id: String,
-    onBack: () -> Unit,
-) {
+private fun AppointmentDetails(api: AgendaApi, token: String, id: String, onBack: () -> Unit) {
     var detail by remember(id) { mutableStateOf<AppointmentView?>(null) }
     var events by remember(id) { mutableStateOf(emptyList<HistoryItem>()) }
     var revision by remember(id) { mutableStateOf(0) }
@@ -314,7 +315,7 @@ private fun AppointmentDetails(
                         value = notes,
                         onValueChange = { notes = it },
                         label = { Text("Observações") },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedButton(enabled = !busy, onClick = {
                         busy = true
@@ -365,8 +366,10 @@ private fun AppointmentDetails(
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
             Text("Histórico", style = MaterialTheme.typography.titleMedium)
             events.forEach { event ->
-                Text(displayTime(event.happenedAt) + " • " +
-                    event.eventType + " → " + statusText(event.newStatus))
+                Text(
+                    displayTime(event.happenedAt) + " • " +
+                        event.eventType + " → " + statusText(event.newStatus)
+                )
             }
         }
         if (message.isNotBlank()) Text(message, color = MaterialTheme.colorScheme.error)
@@ -374,11 +377,7 @@ private fun AppointmentDetails(
 }
 
 @Composable
-private fun BookingForm(
-    api: AgendaApi,
-    token: String,
-    onSaved: () -> Unit,
-) {
+private fun BookingForm(api: AgendaApi, token: String, onSaved: () -> Unit) {
     val scope = rememberCoroutineScope()
     var day by remember { mutableStateOf(LocalDate.now().toString()) }
     var query by remember { mutableStateOf("") }
@@ -432,13 +431,13 @@ private fun BookingForm(
             },
             label = { Text("Data AAAA-MM-DD") },
             isError = !validDate(day),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
             label = { Text("Buscar cliente por nome/telefone") },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth()
         )
         TextButton(onClick = { createClient = !createClient }) { Text("+ Novo cliente") }
         if (createClient) {
@@ -446,13 +445,13 @@ private fun BookingForm(
                 value = clientName,
                 onValueChange = { clientName = it },
                 label = { Text("Nome obrigatório") },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth()
             )
             OutlinedTextField(
                 value = clientPhone,
                 onValueChange = { clientPhone = it },
                 label = { Text("Telefone opcional") },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth()
             )
             Button(enabled = !busy && clientName.isNotBlank(), onClick = {
                 busy = true
@@ -460,7 +459,7 @@ private fun BookingForm(
                     try {
                         val created = api.newClient(
                             token,
-                            CreateClient(clientName.trim(), clientPhone.ifBlank { null }),
+                            CreateClient(clientName.trim(), clientPhone.ifBlank { null })
                         )
                         clientId = created.id
                         clients = listOf(created)
@@ -483,7 +482,7 @@ private fun BookingForm(
                     clientId = customer.id
                     key = UUID.randomUUID().toString()
                 },
-                label = { Text(customer.name + " " + customer.phone.orEmpty()) },
+                label = { Text(customer.name + " " + customer.phone.orEmpty()) }
             )
         }
         HorizontalDivider()
@@ -497,9 +496,11 @@ private fun BookingForm(
                     key = UUID.randomUUID().toString()
                 },
                 label = {
-                    Text(service.name + " • " + service.durationMinutes +
-                        " min • " + formatBrl(service.defaultPrice))
-                },
+                    Text(
+                        service.name + " • " + service.durationMinutes +
+                            " min • " + formatBrl(service.defaultPrice)
+                    )
+                }
             )
         }
         Text("Horários disponíveis", style = MaterialTheme.typography.titleMedium)
@@ -511,7 +512,7 @@ private fun BookingForm(
                     startsAt = available.startsAt
                     key = UUID.randomUUID().toString()
                 },
-                label = { Text(available.localStart) },
+                label = { Text(available.localStart) }
             )
         }
         OutlinedTextField(
@@ -521,7 +522,7 @@ private fun BookingForm(
                 key = UUID.randomUUID().toString()
             },
             label = { Text("Valor (ex.: 45.50)") },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
             value = notes,
@@ -530,7 +531,7 @@ private fun BookingForm(
                 key = UUID.randomUUID().toString()
             },
             label = { Text("Observações") },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth()
         )
         if (message.isNotBlank()) Text(message)
         Button(
@@ -552,8 +553,8 @@ private fun BookingForm(
                                 serviceId,
                                 startsAt,
                                 BigDecimal(price),
-                                notes,
-                            ),
+                                notes
+                            )
                         )
                         onSaved()
                     } catch (e: Exception) {
@@ -562,16 +563,15 @@ private fun BookingForm(
                         busy = false
                     }
                 }
-            },
+            }
         ) { Text(if (busy) "Salvando..." else "Confirmar agendamento") }
         Spacer(Modifier.height(24.dp))
     }
 }
 
-private fun statusColor(status: String): Color =
-    when (status) {
-        "COMPLETED" -> BarberCompleted
-        "IN_PROGRESS" -> BarberInProgress
-        "CANCELLED" -> BarberCancelAction
-        else -> BarberScheduled
-    }
+private fun statusColor(status: String): Color = when (status) {
+    "COMPLETED" -> BarberCompleted
+    "IN_PROGRESS" -> BarberInProgress
+    "CANCELLED" -> BarberCancelAction
+    else -> BarberScheduled
+}

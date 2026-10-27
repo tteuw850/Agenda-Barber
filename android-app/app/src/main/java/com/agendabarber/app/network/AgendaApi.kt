@@ -18,16 +18,11 @@ data class LoginResponse(
     val accessToken: String,
     val refreshToken: String,
     val tokenType: String,
-    val expiresInSeconds: Long,
+    val expiresInSeconds: Long
 )
 
 data class ClientView(val id: String, val name: String, val phone: String?)
-data class ServiceView(
-    val id: String,
-    val name: String,
-    val durationMinutes: Int,
-    val defaultPrice: BigDecimal,
-)
+data class ServiceView(val id: String, val name: String, val durationMinutes: Int, val defaultPrice: BigDecimal)
 data class SlotView(val startsAt: String, val endsAt: String, val localStart: String)
 
 data class AppointmentView(
@@ -44,14 +39,14 @@ data class AppointmentView(
     val status: String,
     val notes: String?,
     val completedAt: String?,
-    val version: Long,
+    val version: Long
 )
 
 data class HistoryItem(
     val eventType: String,
     val previousStatus: String?,
     val newStatus: String,
-    val happenedAt: String,
+    val happenedAt: String
 )
 
 data class CreateAppointment(
@@ -59,93 +54,73 @@ data class CreateAppointment(
     val serviceId: String,
     val startsAt: String,
     val price: BigDecimal?,
-    val notes: String?,
+    val notes: String?
 )
 
 data class CreateClient(val name: String, val phone: String?)
 
 interface AgendaApi {
     @POST("api/v1/auth/login")
-    suspend fun login(
-        @Body request: LoginRequest,
-    ): LoginResponse
+    suspend fun login(@Body request: LoginRequest): LoginResponse
 
     @GET("api/v1/appointments")
     suspend fun appointments(
         @Header("Authorization") bearer: String,
         @Query("date") date: String,
         @Query("view") view: String,
-        @Query("status") status: String,
+        @Query("status") status: String
     ): List<AppointmentView>
 
     @GET("api/v1/appointments/{id}")
-    suspend fun appointment(
-        @Header("Authorization") bearer: String,
-        @Path("id") id: String,
-    ): AppointmentView
+    suspend fun appointment(@Header("Authorization") bearer: String, @Path("id") id: String): AppointmentView
 
     @GET("api/v1/appointments/{id}/history")
-    suspend fun history(
-        @Header("Authorization") bearer: String,
-        @Path("id") id: String,
-    ): List<HistoryItem>
+    suspend fun history(@Header("Authorization") bearer: String, @Path("id") id: String): List<HistoryItem>
 
     @POST("api/v1/appointments")
     suspend fun book(
         @Header("Authorization") bearer: String,
         @Header("Idempotency-Key") key: String,
-        @Body request: CreateAppointment,
+        @Body request: CreateAppointment
     ): AppointmentView
 
     @PATCH("api/v1/appointments/{id}")
     suspend fun edit(
         @Header("Authorization") bearer: String,
         @Path("id") id: String,
-        @Body fields: Map<String, @JvmSuppressWildcards Any?>,
+        @Body fields: Map<String, @JvmSuppressWildcards Any?>
     ): AppointmentView
 
     @POST("api/v1/appointments/{id}/start")
-    suspend fun start(
-        @Header("Authorization") bearer: String,
-        @Path("id") id: String,
-    ): AppointmentView
+    suspend fun start(@Header("Authorization") bearer: String, @Path("id") id: String): AppointmentView
 
     @POST("api/v1/appointments/{id}/complete")
-    suspend fun complete(
-        @Header("Authorization") bearer: String,
-        @Path("id") id: String,
-    ): AppointmentView
+    suspend fun complete(@Header("Authorization") bearer: String, @Path("id") id: String): AppointmentView
 
     @POST("api/v1/appointments/{id}/cancel")
-    suspend fun cancel(
-        @Header("Authorization") bearer: String,
-        @Path("id") id: String,
-    ): AppointmentView
+    suspend fun cancel(@Header("Authorization") bearer: String, @Path("id") id: String): AppointmentView
 
     @GET("api/v1/clients")
     suspend fun clients(
         @Header("Authorization") bearer: String,
         @Query("search") search: String,
-        @Query("limit") limit: Int = 100,
+        @Query("limit") limit: Int = 100
     ): List<ClientView>
 
     @POST("api/v1/clients")
-    suspend fun newClient(
-        @Header("Authorization") bearer: String,
-        @Body request: CreateClient,
-    ): ClientView
+    suspend fun newClient(@Header("Authorization") bearer: String, @Body request: CreateClient): ClientView
 
     @GET("api/v1/services")
     suspend fun services(
         @Header("Authorization") bearer: String,
-        @Query("activeOnly") activeOnly: Boolean = true,
+        @Query("activeOnly") activeOnly: Boolean = true
     ): List<ServiceView>
 
     @GET("api/v1/schedule/available-slots")
     suspend fun slots(
         @Header("Authorization") bearer: String,
         @Query("date") date: String,
-        @Query("serviceId") serviceId: String,
+        @Query("serviceId") serviceId: String
     ): List<SlotView>
 }
 
