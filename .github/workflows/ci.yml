@@ -24,6 +24,8 @@ jobs:
           cache-dependency-path: backend/pom.xml
       - name: Java tests and Checkstyle
         run: mvn -B -ntp -f backend/pom.xml verify
+      - name: Validate production Dockerfile
+        run: docker build --tag agenda-barber-api:ci backend
 
   android:
     name: Android - ktlint, tests, lint, build
