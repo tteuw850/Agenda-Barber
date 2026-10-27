@@ -89,7 +89,7 @@ class AuthSecurityIntegrationTests {
         Flyway flyway = Flyway.configure()
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration").load();
-        assertEquals(4, flyway.migrate().migrationsExecuted);
+        assertEquals(5, flyway.migrate().migrationsExecuted);
         flyway.validate();
     }
 
@@ -585,6 +585,145 @@ class AuthSecurityIntegrationTests {
                 assertEquals(2, rs.getInt(1));
             }
         }
+    }
+
+    @Test
+    void scheduleHttpRespectsBarberIdentityWorkingHoursAndClosedDays() throws Exception {
+        Account a = account();
+        Account b = account();
+        String owner = tokenFor(a);
+        String other = tokenFor(b);
+        String friday = "2030-03-01";
+        int weekday = java.time.LocalDate.parse(friday).getDayOfWeek().getValue();
+        String hours = "{\"enabled\":true,\"opensAt\":\"08:00\",\"closesAt\":\"18:00\"}";
+        assertEquals(401, get("/api/v1/schedule/working-hours", null).statusCode());
+        assertEquals(200, request("PUT", "/api/v1/schedule/working-hours/" + weekday,
+                hours, owner).statusCode());
+        assertEquals(1, mapper.readTree(get("/api/v1/schedule/working-hours", owner).body()).size());
+        assertEquals(0, mapper.readTree(get("/api/v1/schedule/working-hours", other).body()).size());
+
+        HttpResponse<String> service = request("POST", "/api/v1/services",
+                "{\"name\":\"Corte\",\"durationMinutes\":60,\"defaultPrice\":50,\"isHaircut\":true}",
+                owner);
+        assertEquals(201, service.statusCode(), service.body());
+        String id = mapper.readTree(service.body()).get("id").asText();
+        String url = "/api/v1/schedule/available-slots?date=" + friday + "&serviceId=" + id;
+        JsonNode slots = mapper.readTree(get(url, owner).body());
+        assertTrue(slots.size() > 0);
+        assertTrue(slots.toString().contains("2030-03-01T13:00:00Z"));
+        assertEquals(404, get(url, other).statusCode());
+        assertEquals(400, request("PUT", "/api/v1/schedule/working-hours/" + weekday,
+                "{\"enabled\":true,\"opensAt\":\"18:00\",\"closesAt\":\"08:00\"}", owner)
+                .statusCode());
+        assertEquals(400, request("PUT", "/api/v1/schedule/working-hours/8",
+                hours, owner).statusCode());
+        assertEquals(200, request("PUT", "/api/v1/schedule/working-hours/" + weekday,
+                "{\"enabled\":false,\"opensAt\":\"08:00\",\"closesAt\":\"18:00\"}", owner)
+                .statusCode());
+        assertEquals(0, mapper.readTree(get(url, owner).body()).size());
+    }
+
+    @Test
+    void scheduleHttpOneOffBlocksConflictWithBookingAndCanBeRemoved() throws Exception {
+        Account a = account();
+        Account b = account();
+        String owner = tokenFor(a);
+        String other = tokenFor(b);
+        int weekday = java.time.LocalDate.parse("2030-03-01").getDayOfWeek().getValue();
+        assertEquals(200, request("PUT", "/api/v1/schedule/working-hours/" + weekday,
+                "{\"enabled\":true,\"opensAt\":\"08:00\",\"closesAt\":\"18:00\"}", owner)
+                .statusCode());
+        UUID client = UUID.randomUUID();
+        UUID service = UUID.randomUUID();
+        update("INSERT INTO clients(id,barber_id,name) VALUES(?,?,'Client')", client, a.barber());
+        update("INSERT INTO services(id,barber_id,name,duration_minutes,default_price) "
+                + "VALUES(?,?,'Haircut',60,50)", service, a.barber());
+        scheduling.schedule(a.barber(), client, service,
+                Instant.parse("2030-03-01T13:00:00Z"), Instant.parse("2030-03-01T14:00:00Z"));
+        String overlap = "{\"startsAt\":\"2030-03-01T13:30:00Z\","
+                + "\"endsAt\":\"2030-03-01T14:30:00Z\",\"reason\":\"Pausa\"}";
+        assertEquals(409, request("POST", "/api/v1/schedule/blocks", overlap, owner).statusCode());
+        String valid = "{\"startsAt\":\"2030-03-01T14:00:00Z\","
+                + "\"endsAt\":\"2030-03-01T15:00:00Z\","
+                + "\"reason\":\"Almoco\",\"notes\":\"Pausa de equipe\"}";
+        HttpResponse<String> created = request("POST", "/api/v1/schedule/blocks", valid, owner);
+        assertEquals(201, created.statusCode(), created.body());
+        JsonNode row = mapper.readTree(created.body());
+        String path = "/api/v1/schedule/blocks/" + row.get("id").asText();
+        assertEquals("Pausa de equipe", row.get("notes").asText());
+        assertEquals(1, mapper.readTree(get("/api/v1/schedule/blocks?date=2030-03-01",
+                owner).body()).size());
+        assertEquals(0, mapper.readTree(get("/api/v1/schedule/blocks?date=2030-03-01",
+                other).body()).size());
+        assertEquals(404, request("DELETE", path, null, other).statusCode());
+        assertEquals(409, request("POST", "/api/v1/schedule/blocks", valid, owner).statusCode());
+        assertEquals(204, request("DELETE", path, null, owner).statusCode());
+        assertEquals(404, request("DELETE", path, null, owner).statusCode());
+        assertEquals(0, mapper.readTree(get("/api/v1/schedule/blocks?date=2030-03-01",
+                owner).body()).size());
+    }
+
+    @Test
+    void scheduleHttpWeeklyBlocksRemoveSlotsAndRejectOverlaps() throws Exception {
+        Account a = account();
+        String jwt = tokenFor(a);
+        String date = "2030-03-01";
+        int weekday = java.time.LocalDate.parse(date).getDayOfWeek().getValue();
+        request("PUT", "/api/v1/schedule/working-hours/" + weekday,
+                "{\"enabled\":true,\"opensAt\":\"08:00\",\"closesAt\":\"18:00\"}", jwt);
+        HttpResponse<String> created = request("POST", "/api/v1/services",
+                "{\"name\":\"Corte\",\"durationMinutes\":60,\"defaultPrice\":50,\"isHaircut\":true}", jwt);
+        assertEquals(201, created.statusCode(), created.body());
+        String service = mapper.readTree(created.body()).get("id").asText();
+        String url = "/api/v1/schedule/available-slots?date=" + date + "&serviceId=" + service;
+        String before = get(url, jwt).body();
+        assertTrue(before.contains("2030-03-01T15:00:00Z"));
+        String rule = "{\"weekday\":" + weekday + ",\"startsAt\":\"12:00\","
+                + "\"endsAt\":\"13:00\",\"validFrom\":\"2030-03-01\","
+                + "\"validUntil\":\"2030-05-31\",\"reason\":\"Pausa semanal\"}";
+        HttpResponse<String> block = request("POST", "/api/v1/schedule/recurring-blocks", rule, jwt);
+        assertEquals(201, block.statusCode(), block.body());
+        String id = mapper.readTree(block.body()).get("id").asText();
+        assertFalse(mapper.readTree(get(url, jwt).body()).findValuesAsText("startsAt")
+                .contains("2030-03-01T15:00:00Z"));
+        assertEquals(1, mapper.readTree(get("/api/v1/schedule/recurring-blocks", jwt).body()).size());
+        assertEquals(409, request("POST", "/api/v1/schedule/recurring-blocks", rule, jwt)
+                .statusCode());
+        assertEquals(409, request("POST", "/api/v1/schedule/blocks",
+                "{\"startsAt\":\"2030-03-01T15:00:00Z\","
+                        + "\"endsAt\":\"2030-03-01T16:00:00Z\"}", jwt).statusCode());
+        assertEquals(400, request("POST", "/api/v1/schedule/recurring-blocks",
+                "{\"weekday\":" + weekday + ",\"startsAt\":\"14:00\","
+                        + "\"endsAt\":\"12:00\",\"validFrom\":\"2030-03-01\","
+                        + "\"validUntil\":\"2030-05-31\"}", jwt).statusCode());
+        assertEquals(204, request("DELETE", "/api/v1/schedule/recurring-blocks/" + id,
+                null, jwt).statusCode());
+        assertTrue(get(url, jwt).body().contains("2030-03-01T15:00:00Z"));
+    }
+
+    @Test
+    void changingWorkHoursCannotInvalidateActiveReservation() throws Exception {
+        Account a = account();
+        String jwt = tokenFor(a);
+        int weekday = java.time.LocalDate.parse("2030-03-01").getDayOfWeek().getValue();
+        assertEquals(200, request("PUT", "/api/v1/schedule/working-hours/" + weekday,
+                "{\"enabled\":true,\"opensAt\":\"08:00\",\"closesAt\":\"18:00\"}", jwt)
+                .statusCode());
+        UUID client = UUID.randomUUID();
+        UUID service = UUID.randomUUID();
+        update("INSERT INTO clients(id,barber_id,name) VALUES(?,?,'Client')", client, a.barber());
+        update("INSERT INTO services(id,barber_id,name,duration_minutes,default_price) "
+                + "VALUES(?,?,'Haircut',60,50)", service, a.barber());
+        scheduling.schedule(a.barber(), client, service,
+                Instant.parse("2030-03-01T13:00:00Z"), Instant.parse("2030-03-01T14:00:00Z"));
+        assertEquals(409, request("PUT", "/api/v1/schedule/working-hours/" + weekday,
+                "{\"enabled\":false,\"opensAt\":\"08:00\",\"closesAt\":\"18:00\"}", jwt)
+                .statusCode());
+        assertEquals(409, request("PUT", "/api/v1/schedule/working-hours/" + weekday,
+                "{\"enabled\":true,\"opensAt\":\"11:00\",\"closesAt\":\"18:00\"}", jwt)
+                .statusCode());
+        assertEquals(1, mapper.readTree(get("/api/v1/schedule/working-hours",
+                jwt).body()).size());
     }
 
     private Account account() throws Exception {
