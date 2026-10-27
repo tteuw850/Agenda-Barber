@@ -266,7 +266,13 @@ private fun BackHeader(title: String, onBack: () -> Unit) {
 }
 
 @Composable
-private fun BarberAgendaScreen(repository: AgendaRepository, token: String, revision: Int, onNew: () -> Unit, onDetails: (String) -> Unit) {
+private fun BarberAgendaScreen(
+    repository: AgendaRepository,
+    token: String,
+    revision: Int,
+    onNew: () -> Unit,
+    onDetails: (String) -> Unit
+) {
     var day by remember { mutableStateOf(LocalDate.now().toString()) }
     var period by remember { mutableStateOf("day") }
     var filter by remember { mutableStateOf("all") }
