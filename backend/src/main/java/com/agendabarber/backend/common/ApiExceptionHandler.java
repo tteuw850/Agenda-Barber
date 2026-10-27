@@ -9,6 +9,9 @@ import com.agendabarber.backend.clientcatalog.ClientCatalogService;
 import com.agendabarber.backend.scheduleconfig.ScheduleConfigService;
 import com.agendabarber.backend.scheduling.AgendaSchedulingService;
 import jakarta.validation.ConstraintViolationException;
+import java.sql.SQLException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.transaction.CannotCreateTransactionException;
@@ -27,6 +30,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ProblemDetail> invalidBody(MethodArgumentNotValidException ignored) {
@@ -134,6 +138,15 @@ public class ApiExceptionHandler {
                        DataAccessResourceFailureException.class,
                        TransientDataAccessException.class})
     ResponseEntity<ProblemDetail> unavailableDatabase(RuntimeException ignored) {
+        String sqlState = "unknown";
+        for (Throwable cause = ignored; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sql) {
+                sqlState = sql.getSQLState();
+                break;
+            }
+        }
+        LOGGER.warn("event=database_unavailable exception={} sqlstate={}",
+                ignored.getClass().getSimpleName(), sqlState);
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .header(HttpHeaders.RETRY_AFTER, "5")
                 .body(problemBody(HttpStatus.SERVICE_UNAVAILABLE,
