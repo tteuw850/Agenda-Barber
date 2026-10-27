@@ -89,7 +89,7 @@ class AuthSecurityIntegrationTests {
         Flyway flyway = Flyway.configure()
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration").load();
-        assertEquals(5, flyway.migrate().migrationsExecuted);
+        assertEquals(6, flyway.migrate().migrationsExecuted);
         flyway.validate();
     }
 
@@ -724,6 +724,193 @@ class AuthSecurityIntegrationTests {
                 .statusCode());
         assertEquals(1, mapper.readTree(get("/api/v1/schedule/working-hours",
                 jwt).body()).size());
+    }
+
+
+    @Test
+    void appointmentsCreateIsIdempotentAndPreservesServiceSnapshot() throws Exception {
+        BookingFixture a = bookingFixture();
+        String key = "booking-" + UUID.randomUUID();
+        String body = bookingBody(a.client(), a.service(), "2030-03-01T13:00:00Z");
+        assertEquals(400, request("POST", "/api/v1/appointments", body, a.jwt()).statusCode());
+        assertEquals(401, book(body, null, key).statusCode());
+        HttpResponse<String> created = book(body, a.jwt(), key);
+        assertEquals(201, created.statusCode(), created.body());
+        JsonNode initial = mapper.readTree(created.body());
+        String id = initial.get("id").asText();
+        assertEquals("SCHEDULED", initial.get("status").asText());
+        assertEquals("Cliente Teste", initial.get("clientName").asText());
+        assertEquals("31999998888", initial.get("clientPhone").asText());
+        assertEquals("Corte Inicial", initial.get("serviceName").asText());
+        assertEquals(60, initial.get("durationMinutes").asInt());
+        assertEquals(0, initial.get("price").decimalValue().compareTo(new BigDecimal("47.50")));
+        assertEquals(201, book(body, a.jwt(), key).statusCode());
+        assertEquals(id, mapper.readTree(book(body, a.jwt(), key).body()).get("id").asText());
+        assertEquals(409, book(body.replace("13:00", "14:00"), a.jwt(), key).statusCode());
+        assertEquals(409, book(body, a.jwt(), "different-" + UUID.randomUUID()).statusCode());
+        assertEquals(1, mapper.readTree(get("/api/v1/appointments/" + id + "/history",
+                a.jwt()).body()).size());
+        update("UPDATE services SET name='Corte Modificado', default_price=90 WHERE id=?", a.service());
+        JsonNode persisted = mapper.readTree(get("/api/v1/appointments/" + id, a.jwt()).body());
+        assertEquals("Corte Inicial", persisted.get("serviceName").asText());
+        assertEquals(0, persisted.get("price").decimalValue().compareTo(new BigDecimal("47.50")));
+        assertEquals(1, countAppointments(a.barber()));
+        assertEquals(1, countBySql("SELECT count(*) FROM idempotency_records WHERE "
+                + "resource_id=?", UUID.fromString(id)));
+    }
+
+    @Test
+    void appointmentsEditRescheduleAndTransitionsGenerateHistoryAtomically() throws Exception {
+        BookingFixture a = bookingFixture();
+        String body = bookingBody(a.client(), a.service(), "2030-03-01T13:00:00Z");
+        HttpResponse<String> created = book(body, a.jwt(), "editing-" + UUID.randomUUID());
+        assertEquals(201, created.statusCode(), created.body());
+        String id = mapper.readTree(created.body()).get("id").asText();
+        String path = "/api/v1/appointments/" + id;
+        assertEquals(400, request("PATCH", path, "{}", a.jwt()).statusCode());
+        assertEquals(400, request("PATCH", path, "{\"price\":-1}", a.jwt()).statusCode());
+        assertEquals(400, request("PATCH", path, "{\"badField\":true}", a.jwt()).statusCode());
+        HttpResponse<String> edit = request("PATCH", path,
+                "{\"startsAt\":\"2030-03-01T14:00:00Z\",\"price\":55.50,"
+                        + "\"notes\":\"Cliente pediu corte curto\"}", a.jwt());
+        assertEquals(200, edit.statusCode(), edit.body());
+        JsonNode edited = mapper.readTree(edit.body());
+        assertEquals("2030-03-01T14:00:00Z", edited.get("startsAt").asText());
+        assertEquals("2030-03-01T15:00:00Z", edited.get("endsAt").asText());
+        assertEquals(0, edited.get("price").decimalValue().compareTo(new BigDecimal("55.50")));
+        assertEquals(1, edited.get("version").asInt());
+        assertEquals(200, request("POST", path + "/start", null, a.jwt()).statusCode());
+        assertEquals(200, request("POST", path + "/start", null, a.jwt()).statusCode());
+        assertEquals(409, request("PATCH", path, "{\"notes\":\"too late\"}", a.jwt()).statusCode());
+        assertEquals(200, request("POST", path + "/complete", null, a.jwt()).statusCode());
+        JsonNode completed = mapper.readTree(get(path, a.jwt()).body());
+        assertEquals("COMPLETED", completed.get("status").asText());
+        assertFalse(completed.get("completedAt").isNull());
+        assertEquals(200, request("POST", path + "/complete", null, a.jwt()).statusCode());
+        assertEquals(409, request("POST", path + "/cancel", null, a.jwt()).statusCode());
+        JsonNode history = mapper.readTree(get(path + "/history", a.jwt()).body());
+        assertEquals(4, history.size()); // create, edit, start, complete (no duplicate events)
+        assertEquals("CREATED", history.get(0).get("eventType").asText());
+        assertEquals("COMPLETED", history.get(3).get("newStatus").asText());
+        JsonNode client = mapper.readTree(get("/api/v1/clients/" + a.client(), a.jwt()).body());
+        assertEquals(1, client.get("completedAppointments").asInt());
+    }
+
+    @Test
+    void appointmentsListScopesByBarberDateStatusAndSupportsCancellation() throws Exception {
+        BookingFixture a = bookingFixture();
+        BookingFixture b = bookingFixture();
+        String body = bookingBody(a.client(), a.service(), "2030-03-01T13:00:00Z");
+        HttpResponse<String> created = book(body, a.jwt(), "listing-" + UUID.randomUUID());
+        assertEquals(201, created.statusCode(), created.body());
+        String id = mapper.readTree(created.body()).get("id").asText();
+        String path = "/api/v1/appointments?date=2030-03-01";
+        assertEquals(1, mapper.readTree(get(path + "&view=day", a.jwt()).body()).size());
+        assertEquals(1, mapper.readTree(get(path + "&view=week", a.jwt()).body()).size());
+        assertEquals(1, mapper.readTree(get(path + "&view=month", a.jwt()).body()).size());
+        assertEquals(0, mapper.readTree(get(path, b.jwt()).body()).size());
+        assertEquals(404, get("/api/v1/appointments/" + id, b.jwt()).statusCode());
+        assertEquals(404, get("/api/v1/appointments/" + id + "/history", b.jwt()).statusCode());
+        assertEquals(404, request("POST", "/api/v1/appointments/" + id + "/start",
+                null, b.jwt()).statusCode());
+        assertEquals(400, get(path + "&view=year", a.jwt()).statusCode());
+        assertEquals(400, get(path + "&status=INVALID", a.jwt()).statusCode());
+        assertEquals(400, get(path + "&limit=501", a.jwt()).statusCode());
+        assertEquals(400, get("/api/v1/appointments", a.jwt()).statusCode());
+        assertEquals(200, request("POST", "/api/v1/appointments/" + id + "/cancel",
+                null, a.jwt()).statusCode());
+        assertEquals(0, mapper.readTree(get(path + "&status=SCHEDULED",
+                a.jwt()).body()).size());
+        assertEquals(1, mapper.readTree(get(path + "&status=CANCELLED",
+                a.jwt()).body()).size());
+        assertEquals(409, request("POST", "/api/v1/appointments/" + id + "/complete",
+                null, a.jwt()).statusCode());
+    }
+
+    @Test
+    void appointmentsRejectClosedDayAndBlockedTimeAndCrossTenantSelections() throws Exception {
+        BookingFixture a = bookingFixture();
+        BookingFixture b = bookingFixture();
+        String other = bookingBody(b.client(), a.service(), "2030-03-01T13:00:00Z");
+        assertEquals(404, book(other, a.jwt(), "foreign-" + UUID.randomUUID()).statusCode());
+        String body = bookingBody(a.client(), a.service(), "2030-03-01T13:00:00Z");
+        assertEquals(201, book(body, a.jwt(), "first-" + UUID.randomUUID()).statusCode());
+        assertEquals(409, book(body, a.jwt(), "overlap-" + UUID.randomUUID()).statusCode());
+        String blocked = bookingBody(a.client(), a.service(), "2030-03-01T15:00:00Z");
+        String block = "{\"startsAt\":\"2030-03-01T15:00:00Z\","
+                + "\"endsAt\":\"2030-03-01T16:00:00Z\",\"reason\":\"Pausa\"}";
+        assertEquals(201, request("POST", "/api/v1/schedule/blocks", block, a.jwt()).statusCode());
+        assertEquals(409, book(blocked, a.jwt(), "blocked-" + UUID.randomUUID()).statusCode());
+        assertEquals(409, request("PATCH", "/api/v1/appointments/"
+                + appointmentIdByBarber(a.barber()), "{\"startsAt\":\"2030-03-01T15:00:00Z\"}",
+                a.jwt()).statusCode());
+        String closed = bookingBody(a.client(), a.service(), "2030-03-03T13:00:00Z");
+        assertEquals(409, book(closed, a.jwt(), "closed-" + UUID.randomUUID()).statusCode());
+    }
+
+    private BookingFixture bookingFixture() throws Exception {
+        Account account = account();
+        String token = tokenFor(account);
+        UUID client = UUID.randomUUID();
+        UUID service = UUID.randomUUID();
+        update("INSERT INTO clients(id,barber_id,name,phone) "
+                + "VALUES(?,?,'Cliente Teste','31999998888')", client, account.barber());
+        update("INSERT INTO services(id,barber_id,name,duration_minutes,default_price) "
+                + "VALUES(?,?,'Corte Inicial',60,45)", service, account.barber());
+        update("INSERT INTO working_hours(barber_id,weekday,opens_at,closes_at) "
+                + "VALUES(?,5,TIME '08:00',TIME '18:00')", account.barber());
+        return new BookingFixture(account.barber(), client, service, token);
+    }
+
+    private String bookingBody(UUID client, UUID service, String start) {
+        return "{\"clientId\":\"" + client + "\",\"serviceId\":\"" + service + "\","
+                + "\"startsAt\":\"" + start + "\",\"price\":47.50,\"notes\":\"Observacao\"}";
+    }
+
+    private HttpResponse<String> book(String body, String token, String key) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(
+                URI.create("http://127.0.0.1:" + port + "/api/v1/appointments"))
+                .header("Content-Type", "application/json");
+        if (token != null) {
+            builder.header("Authorization", "Bearer " + token);
+        }
+        if (key != null) {
+            builder.header("Idempotency-Key", key);
+        }
+        builder.POST(HttpRequest.BodyPublishers.ofString(body));
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            return client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+        }
+    }
+
+    private int countAppointments(UUID barber) throws Exception {
+        return countBySql("SELECT count(*) FROM appointments WHERE barber_id=?", barber);
+    }
+
+    private int countBySql(String sql, UUID id) throws Exception {
+        try (Connection db = database();
+                PreparedStatement statement = db.prepareStatement(sql)) {
+            statement.setObject(1, id);
+            try (var result = statement.executeQuery()) {
+                assertTrue(result.next());
+                return result.getInt(1);
+            }
+        }
+    }
+
+    private String appointmentIdByBarber(UUID barber) throws Exception {
+        try (Connection db = database();
+                PreparedStatement statement = db.prepareStatement(
+                        "SELECT id FROM appointments WHERE barber_id=?")) {
+            statement.setObject(1, barber);
+            try (var result = statement.executeQuery()) {
+                assertTrue(result.next());
+                return result.getObject(1, UUID.class).toString();
+            }
+        }
+    }
+
+    private record BookingFixture(UUID barber, UUID client, UUID service, String jwt) {
     }
 
     private Account account() throws Exception {

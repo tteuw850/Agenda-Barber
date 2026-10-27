@@ -16,6 +16,7 @@ import java.util.UUID;
 import javax.sql.DataSource;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.stereotype.Service;
@@ -97,6 +98,65 @@ public final class AgendaSchedulingService {
                             + "VALUES(?,?,?,?,?)", id, barberId, utc(start), utc(end), reason);
             return id;
         });
+    }
+
+    /** Rebook an unstarted appointment within the same barber transaction/lock discipline. */
+    public void reschedule(UUID barberId, UUID id, UUID clientId, UUID serviceId,
+                           Instant start, BigDecimal price, String notes) {
+        try {
+            tx.executeWithoutResult(status -> {
+                ZoneId zone = lockBarber(barberId);
+                String state;
+                try {
+                    state = jdbc.queryForObject(
+                            "SELECT status::text FROM appointments WHERE barber_id=? AND id=? FOR UPDATE",
+                            String.class, barberId, id);
+                } catch (EmptyResultDataAccessException ignored) {
+                    throw new IllegalArgumentException("Appointment not found");
+                }
+                if (!"SCHEDULED".equals(state)) {
+                    throw new ScheduleConflictException(ConflictType.APPOINTMENT_OVERLAP);
+                }
+                Snapshot service;
+                try {
+                    service = jdbc.queryForObject(
+                            "SELECT name,duration_minutes,default_price FROM services "
+                                    + "WHERE barber_id=? AND id=? AND active=true",
+                            (rs, n) -> new Snapshot(rs.getString(1), rs.getInt(2),
+                                    rs.getBigDecimal(3)), barberId, serviceId);
+                } catch (EmptyResultDataAccessException ignored) {
+                    throw new IllegalArgumentException("Service not found");
+                }
+                Boolean client = jdbc.queryForObject(
+                        "SELECT EXISTS(SELECT 1 FROM clients "
+                                + "WHERE id=? AND barber_id=? AND active=true)",
+                        Boolean.class, clientId, barberId);
+                if (!Boolean.TRUE.equals(client)) {
+                    throw new IllegalArgumentException("Client not found");
+                }
+                Instant end = start.plus(Duration.ofMinutes(service.minutes()));
+                requireWorkingHours(barberId, start, end, zone);
+                Boolean busy = jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM appointments "
+                                + "WHERE barber_id=? AND id<>? AND status IN ('SCHEDULED','IN_PROGRESS') "
+                                + "AND starts_at<? AND ends_at>?)",
+                        Boolean.class, barberId, id, utc(end), utc(start));
+                if (Boolean.TRUE.equals(busy)) {
+                    throw new ScheduleConflictException(ConflictType.APPOINTMENT_OVERLAP);
+                }
+                requireNoBlock(barberId, start, end);
+                requireNoRecurringBlock(barberId, start, end, zone);
+                jdbc.update("UPDATE appointments SET client_id=?,service_id=?,starts_at=?,ends_at=?,"
+                                + "service_name_snapshot=?,price_snapshot=?,notes=?,version=version+1 "
+                                + "WHERE barber_id=? AND id=?",
+                        clientId, serviceId, utc(start), utc(end),
+                        service.name(), price == null ? service.price() : price, notes, barberId, id);
+            });
+        } catch (DataIntegrityViolationException error) {
+            if (hasSqlState(error, "23P01")) {
+                throw new ScheduleConflictException(ConflictType.APPOINTMENT_OVERLAP);
+            }
+            throw error;
+        }
     }
 
     private ZoneId lockBarber(UUID barberId) {
