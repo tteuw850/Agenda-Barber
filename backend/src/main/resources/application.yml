@@ -49,3 +49,18 @@ spring:
     username: ${NEON_DB_USERNAME}
     password: ${NEON_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      minimum-idle: 0
+      maximum-pool-size: 3
+      idle-timeout: 60000
+      connection-timeout: 20000
+      validation-timeout: 5000
+      keepalive-time: 0
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  health:
+    db:
+      enabled: false
