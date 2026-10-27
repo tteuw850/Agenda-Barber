@@ -42,17 +42,17 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -67,7 +67,6 @@ import com.agendabarber.app.cache.AgendaCacheDatabase
 import com.agendabarber.app.cache.AgendaRepository
 import com.agendabarber.app.cache.AgendaViewModel
 import com.agendabarber.app.network.AgendaApi
-import com.agendabarber.app.network.AppointmentView
 import com.agendabarber.app.network.ClientView
 import com.agendabarber.app.network.CreateClient
 import com.agendabarber.app.network.ServiceView
@@ -105,11 +104,7 @@ internal object BarberRoute {
 }
 
 @Composable
-internal fun BarberAuthenticatedApp(
-    api: AgendaApi,
-    token: String,
-    onLogout: () -> Unit
-) {
+internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () -> Unit) {
     val context = LocalContext.current
     val database = remember {
         Room.databaseBuilder(
@@ -271,13 +266,7 @@ private fun BackHeader(title: String, onBack: () -> Unit) {
 }
 
 @Composable
-private fun BarberAgendaScreen(
-    repository: AgendaRepository,
-    token: String,
-    revision: Int,
-    onNew: () -> Unit,
-    onDetails: (String) -> Unit
-) {
+private fun BarberAgendaScreen(repository: AgendaRepository, token: String, revision: Int, onNew: () -> Unit, onDetails: (String) -> Unit) {
     var day by remember { mutableStateOf(LocalDate.now().toString()) }
     var period by remember { mutableStateOf("day") }
     var filter by remember { mutableStateOf("all") }
@@ -375,11 +364,7 @@ private fun BarberAgendaScreen(
 }
 
 @Composable
-private fun BarberClientsScreen(
-    api: AgendaApi,
-    token: String,
-    onNewClient: () -> Unit
-) {
+private fun BarberClientsScreen(api: AgendaApi, token: String, onNewClient: () -> Unit) {
     var query by remember { mutableStateOf("") }
     var clients by remember { mutableStateOf(emptyList<ClientView>()) }
     var loading by remember { mutableStateOf(true) }
@@ -569,11 +554,7 @@ private fun StatCard(title: String, background: Color, modifier: Modifier = Modi
 }
 
 @Composable
-private fun BarberMoreScreen(
-    onServices: () -> Unit,
-    onBlocks: () -> Unit,
-    onLogout: () -> Unit
-) {
+private fun BarberMoreScreen(onServices: () -> Unit, onBlocks: () -> Unit, onLogout: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Mais", style = MaterialTheme.typography.headlineSmall)
         Row(verticalAlignment = Alignment.CenterVertically) {
