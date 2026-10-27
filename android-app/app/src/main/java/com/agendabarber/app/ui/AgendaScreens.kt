@@ -534,12 +534,19 @@ private fun BookingForm(api: AgendaApi, token: String, onSaved: () -> Unit) {
             modifier = Modifier.fillMaxWidth()
         )
         if (message.isNotBlank()) Text(message)
+        val validPrice = runCatching {
+            BigDecimal(price).let { it.signum() >= 0 && it.scale() <= 2 }
+        }.getOrDefault(false)
+        val canBook = listOf(
+            !busy,
+            clientId.isNotBlank(),
+            serviceId.isNotBlank(),
+            startsAt.isNotBlank(),
+            validPrice
+        ).all { it }
         Button(
             modifier = Modifier.fillMaxWidth(),
-            enabled = !busy && clientId.isNotBlank() && serviceId.isNotBlank() &&
-                startsAt.isNotBlank() && runCatching {
-                    BigDecimal(price).let { it.signum() >= 0 && it.scale() <= 2 }
-                }.getOrDefault(false),
+            enabled = canBook,
             onClick = {
                 busy = true
                 message = ""
