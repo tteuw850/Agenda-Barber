@@ -848,6 +848,57 @@ class AuthSecurityIntegrationTests {
         assertEquals(409, book(closed, a.jwt(), "closed-" + UUID.randomUUID()).statusCode());
     }
 
+    @Test
+    void concurrentIdenticalAppointmentRequestsCommitOnlyOneBooking() throws Exception {
+        BookingFixture a = bookingFixture();
+        String body = bookingBody(a.client(), a.service(), "2030-03-01T13:00:00Z");
+        String key = "race-" + UUID.randomUUID();
+        CountDownLatch latch = new CountDownLatch(1);
+        try (ExecutorService workers = Executors.newFixedThreadPool(2)) {
+            Future<HttpResponse<String>> one = workers.submit(() -> {
+                assertTrue(latch.await(10, TimeUnit.SECONDS));
+                return book(body, a.jwt(), key);
+            });
+            Future<HttpResponse<String>> two = workers.submit(() -> {
+                assertTrue(latch.await(10, TimeUnit.SECONDS));
+                return book(body, a.jwt(), key);
+            });
+            latch.countDown();
+            HttpResponse<String> first = one.get(60, TimeUnit.SECONDS);
+            HttpResponse<String> second = two.get(60, TimeUnit.SECONDS);
+            assertEquals(201, first.statusCode(), first.body());
+            assertEquals(201, second.statusCode(), second.body());
+            assertEquals(mapper.readTree(first.body()).get("id").asText(),
+                    mapper.readTree(second.body()).get("id").asText());
+        }
+        assertEquals(1, countAppointments(a.barber()));
+    }
+
+    @Test
+    void simultaneousDifferentKeysCannotReserveOverlappingAppointments() throws Exception {
+        BookingFixture a = bookingFixture();
+        String body = bookingBody(a.client(), a.service(), "2030-03-01T13:00:00Z");
+        CountDownLatch latch = new CountDownLatch(1);
+        try (ExecutorService workers = Executors.newFixedThreadPool(2)) {
+            Future<HttpResponse<String>> one = workers.submit(() -> {
+                assertTrue(latch.await(10, TimeUnit.SECONDS));
+                return book(body, a.jwt(), "first-" + UUID.randomUUID());
+            });
+            Future<HttpResponse<String>> two = workers.submit(() -> {
+                assertTrue(latch.await(10, TimeUnit.SECONDS));
+                return book(body, a.jwt(), "second-" + UUID.randomUUID());
+            });
+            latch.countDown();
+            HttpResponse<String> first = one.get(60, TimeUnit.SECONDS);
+            HttpResponse<String> second = two.get(60, TimeUnit.SECONDS);
+            assertEquals(1, List.of(first, second).stream()
+                    .filter(response -> response.statusCode() == 201).count());
+            assertEquals(1, List.of(first, second).stream()
+                    .filter(response -> response.statusCode() == 409).count());
+        }
+        assertEquals(1, countAppointments(a.barber()));
+    }
+
     private BookingFixture bookingFixture() throws Exception {
         Account account = account();
         String token = tokenFor(account);
