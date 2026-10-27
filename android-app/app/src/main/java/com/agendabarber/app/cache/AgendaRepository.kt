@@ -11,29 +11,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import retrofit2.HttpException
 
-data class AgendaLoadResult(
-    val appointments: List<AppointmentView>,
-    val fromCache: Boolean,
-    val synchronizedAt: Long
-)
+data class AgendaLoadResult(val appointments: List<AppointmentView>, val fromCache: Boolean, val synchronizedAt: Long)
 
 /**
  * API is always authoritative. Room is a READ-ONLY fallback, never a queue for writes.
  * Entries are namespaced by a one-way hash of the current token and query parameters.
  */
-class AgendaRepository(
-    private val api: AgendaApi,
-    private val dao: AgendaCacheDao,
-    private val gson: Gson = Gson()
-) {
+class AgendaRepository(private val api: AgendaApi, private val dao: AgendaCacheDao, private val gson: Gson = Gson()) {
     private val listType = object : TypeToken<List<AppointmentView>>() {}.type
 
-    suspend fun appointments(
-        token: String,
-        date: String,
-        view: String,
-        status: String
-    ): AgendaLoadResult {
+    suspend fun appointments(token: String, date: String, view: String, status: String): AgendaLoadResult {
         val key = cacheKey(token, date, view, status)
         try {
             val live = api.appointments(token, date, view, status)
