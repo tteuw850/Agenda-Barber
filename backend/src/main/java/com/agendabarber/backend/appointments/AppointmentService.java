@@ -118,15 +118,20 @@ public class AppointmentService {
             throw new InvalidAppointmentException();
         }
         String fingerprint = hash(request);
-        // Serialize identical-key attempts *before* checking idempotency.
-        jdbc.queryForObject("SELECT id FROM users WHERE id=? FOR UPDATE", UUID.class, userId);
-        List<IdempotentEntry> prior = jdbc.query(
-                "SELECT operation,request_hash,resource_id FROM idempotency_records "
-                        + "WHERE user_id=? AND idempotency_key=?",
-                (rs, n) -> new IdempotentEntry(
-                        rs.getString(1), rs.getString(2), rs.getObject(3, UUID.class)), userId, key);
-        if (!prior.isEmpty()) {
-            IdempotentEntry existing = prior.get(0);
+        // The unique index is the serialization point. Unlike a user-row
+        // FOR UPDATE lock, it does not invert the lock order of foreign keys.
+        int reserved = jdbc.update("INSERT INTO idempotency_records "
+                        + "(user_id,idempotency_key,request_hash,operation) "
+                        + "VALUES(?,?,?,'APPOINTMENT_CREATE') "
+                        + "ON CONFLICT (user_id,idempotency_key) DO NOTHING",
+                userId, key, fingerprint);
+        if (reserved == 0) {
+            IdempotentEntry existing = jdbc.queryForObject(
+                    "SELECT operation,request_hash,resource_id FROM idempotency_records "
+                            + "WHERE user_id=? AND idempotency_key=?",
+                    (rs, n) -> new IdempotentEntry(
+                            rs.getString(1), rs.getString(2),
+                            rs.getObject(3, UUID.class)), userId, key);
             if (!"APPOINTMENT_CREATE".equals(existing.operation())
                     || !fingerprint.equals(existing.fingerprint())) {
                 throw new AppointmentConflictException();
@@ -150,10 +155,9 @@ public class AppointmentService {
                         + "WHERE barber_id=? AND id=?",
                 cleanNotes(request.notes()), request.price(), barberId, appointmentId);
         event(barberId, appointmentId, "CREATED", null, "SCHEDULED");
-        jdbc.update("INSERT INTO idempotency_records "
-                        + "(user_id,idempotency_key,request_hash,operation,resource_id) "
-                        + "VALUES(?,?,?,'APPOINTMENT_CREATE',?)",
-                userId, key, fingerprint, appointmentId);
+        jdbc.update("UPDATE idempotency_records SET resource_id=? "
+                        + "WHERE user_id=? AND idempotency_key=?",
+                appointmentId, userId, key);
         return get(barberId, appointmentId);
     }
 
