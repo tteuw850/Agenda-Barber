@@ -112,55 +112,21 @@ public class AppointmentService {
                 barberId, appointmentId);
     }
 
-    @Transactional
     public AppointmentView create(UUID barberId, UUID userId, String key, CreateAppointment request) {
         if (key == null || !key.matches("[A-Za-z0-9._:-]{8,128}")) {
             throw new InvalidAppointmentException();
         }
-        String fingerprint = hash(request);
-        // Use the same lock as schedule/block writers FIRST, then idempotency.
-        // Serializing by barber avoids a key-reservation race during concurrent POSTs.
-        jdbc.queryForObject("SELECT id FROM barbers WHERE id=? FOR UPDATE", UUID.class, barberId);
-        // The unique key additionally protects retries after an ambiguous timeout.
-        int reserved = jdbc.update("INSERT INTO idempotency_records "
-                        + "(user_id,idempotency_key,request_hash,operation) "
-                        + "VALUES(?,?,?,'APPOINTMENT_CREATE') "
-                        + "ON CONFLICT (user_id,idempotency_key) DO NOTHING",
-                userId, key, fingerprint);
-        if (reserved == 0) {
-            IdempotentEntry existing = jdbc.queryForObject(
-                    "SELECT operation,request_hash,resource_id FROM idempotency_records "
-                            + "WHERE user_id=? AND idempotency_key=?",
-                    (rs, n) -> new IdempotentEntry(
-                            rs.getString(1), rs.getString(2),
-                            rs.getObject(3, UUID.class)), userId, key);
-            if (!"APPOINTMENT_CREATE".equals(existing.operation())
-                    || !fingerprint.equals(existing.fingerprint())) {
-                throw new AppointmentConflictException();
-            }
-            return get(barberId, existing.resourceId());
-        }
-
-        Integer duration;
+        // The scheduler owns the transaction. The booking, CREATED event and
+        // idempotency row all commit or roll back together before returning.
+        UUID id;
         try {
-            duration = jdbc.queryForObject("SELECT duration_minutes FROM services "
-                            + "WHERE barber_id=? AND id=? AND active=true",
-                    Integer.class, barberId, request.serviceId());
-        } catch (EmptyResultDataAccessException ignored) {
+            id = scheduling.bookAtomic(barberId, userId, request.clientId(), request.serviceId(),
+                    request.startsAt(), request.price(), cleanNotes(request.notes()),
+                    key, hash(request));
+        } catch (IllegalArgumentException unknownClientOrService) {
             throw new AppointmentNotFoundException();
         }
-        requireActiveClient(barberId, request.clientId());
-        Instant end = request.startsAt().plus(Duration.ofMinutes(duration));
-        UUID appointmentId = scheduling.schedule(
-                barberId, request.clientId(), request.serviceId(), request.startsAt(), end);
-        jdbc.update("UPDATE appointments SET notes=?,price_snapshot=COALESCE(?,price_snapshot) "
-                        + "WHERE barber_id=? AND id=?",
-                cleanNotes(request.notes()), request.price(), barberId, appointmentId);
-        event(barberId, appointmentId, "CREATED", null, "SCHEDULED");
-        jdbc.update("UPDATE idempotency_records SET resource_id=? "
-                        + "WHERE user_id=? AND idempotency_key=?",
-                appointmentId, userId, key);
-        return get(barberId, appointmentId);
+        return get(barberId, id);
     }
 
     @Transactional
@@ -225,15 +191,6 @@ public class AppointmentService {
                         + "(barber_id,appointment_id,event_type,previous_status,new_status) "
                         + "VALUES(?,?,?,?::appointment_status,?::appointment_status)",
                 barberId, id, kind, before, after);
-    }
-
-    private void requireActiveClient(UUID barberId, UUID clientId) {
-        Boolean active = jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM clients "
-                        + "WHERE barber_id=? AND id=? AND active=true)",
-                Boolean.class, barberId, clientId);
-        if (!Boolean.TRUE.equals(active)) {
-            throw new AppointmentNotFoundException();
-        }
     }
 
     private ZoneId timezone(UUID barberId) {
@@ -321,9 +278,6 @@ public class AppointmentService {
         } catch (NoSuchAlgorithmException impossible) {
             throw new IllegalStateException("SHA-256 unavailable");
         }
-    }
-
-    private record IdempotentEntry(String operation, String fingerprint, UUID resourceId) {
     }
 
     public static final class AppointmentNotFoundException extends RuntimeException {
