@@ -35,6 +35,8 @@ public class SecurityConfig {
                         "/swagger-ui/**").permitAll();
                 authorize.anyRequest().denyAll();
             } else {
+                // Public liveness check contains no database queries or authentication data.
+                authorize.requestMatchers(HttpMethod.GET, "/actuator/health").permitAll();
                 authorize.requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/refresh")
                         .permitAll();
                 authorize.anyRequest().authenticated();
