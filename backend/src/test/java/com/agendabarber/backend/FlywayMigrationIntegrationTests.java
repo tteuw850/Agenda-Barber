@@ -155,7 +155,7 @@ class FlywayMigrationIntegrationTests {
                 + "WHERE table_schema='public' AND table_name='recurring_blocks'"));
         assertEquals(1, count("SELECT count(*) FROM information_schema.columns "
                 + "WHERE table_name='blocked_periods' AND column_name='notes'"));
-        assertEquals(5, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
+        assertEquals(6, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
     }
 
 
