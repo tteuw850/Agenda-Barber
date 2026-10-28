@@ -46,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -148,13 +149,24 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
                     onDetails = { id -> navigation.navigate("appointment/" + id) }
                 )
             }
-            composable(BarberRoute.BOOKING) {
+            composable(BarberRoute.BOOKING) { entry ->
+                val createdClientId by entry.savedStateHandle
+                    .getStateFlow("f0207ClientId", "").collectAsState()
+                val createdClientName by entry.savedStateHandle
+                    .getStateFlow("f0207ClientName", "").collectAsState()
                 Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
                     BackHeader("Novo Agendamento") { navigation.popBackStack() }
-                    BookingForm(api, token) {
-                        revision++
-                        navigation.popBackStack(BarberRoute.AGENDA, false)
-                    }
+                    BarberBookingForm(
+                        api = api,
+                        token = token,
+                        onSaved = {
+                            revision++
+                            navigation.popBackStack(BarberRoute.AGENDA, false)
+                        },
+                        onNewClient = { navigation.navigate(BarberRoute.NEW_CLIENT) },
+                        newClientId = createdClientId,
+                        newClientName = createdClientName
+                    )
                 }
             }
             composable(
@@ -162,9 +174,46 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
                 arguments = listOf(navArgument("id") { type = NavType.StringType })
             ) { backStack ->
                 val id = requireNotNull(backStack.arguments?.getString("id"))
-                AppointmentDetails(api, token, id) {
-                    revision++
-                    navigation.popBackStack()
+                val detailRefresh by backStack.savedStateHandle.getStateFlow("f0207UpdatedAt", 0L).collectAsState()
+                BarberAppointmentDetails(
+                    api = api,
+                    token = token,
+                    id = id,
+                    onBack = {
+                        revision++
+                        navigation.popBackStack()
+                    },
+                    onEdit = { navigation.navigate("appointment/" + id + "/edit") },
+                    refreshSignal = detailRefresh
+                )
+            }
+            composable(
+                "appointment/{id}/edit",
+                arguments = listOf(navArgument("id") { type = NavType.StringType })
+            ) { entry ->
+                val id = requireNotNull(entry.arguments?.getString("id"))
+                val createdClientId by entry.savedStateHandle
+                    .getStateFlow("f0207ClientId", "").collectAsState()
+                val createdClientName by entry.savedStateHandle
+                    .getStateFlow("f0207ClientName", "").collectAsState()
+                Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+                    BackHeader("Editar agendamento") { navigation.popBackStack() }
+                    BarberBookingForm(
+                        api = api,
+                        token = token,
+                        onSaved = {
+                            navigation.previousBackStackEntry?.savedStateHandle?.set(
+                                "f0207UpdatedAt",
+                                System.currentTimeMillis()
+                            )
+                            revision++
+                            navigation.popBackStack()
+                        },
+                        onNewClient = { navigation.navigate(BarberRoute.NEW_CLIENT) },
+                        newClientId = createdClientId,
+                        newClientName = createdClientName,
+                        editId = id
+                    )
                 }
             }
             composable(BarberRoute.CLIENTS) {
@@ -173,7 +222,18 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
                 }
             }
             composable(BarberRoute.NEW_CLIENT) {
-                BarberNewClientScreen(api, token) { navigation.popBackStack() }
+                BarberNewClientScreen(
+                    api = api,
+                    token = token,
+                    onBack = { navigation.popBackStack() },
+                    onCreated = { created ->
+                        navigation.previousBackStackEntry?.savedStateHandle
+                            ?.set("f0207ClientId", created.id)
+                        navigation.previousBackStackEntry?.savedStateHandle
+                            ?.set("f0207ClientName", created.name)
+                        navigation.popBackStack()
+                    }
+                )
             }
             composable(BarberRoute.SERVICES) {
                 BarberServicesScreen(api, token) { navigation.popBackStack() }
@@ -314,7 +374,7 @@ private fun BarberClientsScreen(api: AgendaApi, token: String, onNewClient: () -
 }
 
 @Composable
-private fun BarberNewClientScreen(api: AgendaApi, token: String, onBack: () -> Unit) {
+private fun BarberNewClientScreen(api: AgendaApi, token: String, onBack: () -> Unit, onCreated: (ClientView) -> Unit) {
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -347,8 +407,8 @@ private fun BarberNewClientScreen(api: AgendaApi, token: String, onBack: () -> U
                 loading = true
                 scope.launch {
                     try {
-                        api.newClient(token, CreateClient(name.trim(), phone.ifBlank { null }))
-                        onBack()
+                        val created = api.newClient(token, CreateClient(name.trim(), phone.ifBlank { null }))
+                        onCreated(created)
                     } catch (failure: Exception) {
                         error = apiMessage(failure)
                     } finally {
