@@ -33,7 +33,6 @@ import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -47,7 +46,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,7 +56,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -68,7 +65,6 @@ import androidx.navigation.navArgument
 import androidx.room.Room
 import com.agendabarber.app.cache.AgendaCacheDatabase
 import com.agendabarber.app.cache.AgendaRepository
-import com.agendabarber.app.cache.AgendaViewModel
 import com.agendabarber.app.network.AgendaApi
 import com.agendabarber.app.network.ClientView
 import com.agendabarber.app.network.CreateClient
@@ -85,10 +81,6 @@ import com.agendabarber.app.ui.theme.BarberSurface
 import com.agendabarber.app.ui.theme.BarberSurfaceRaised
 import com.agendabarber.app.ui.theme.BarberTextPrimary
 import com.agendabarber.app.ui.theme.BarberTextSecondary
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
 /** Routes match the ten UX references. Inner forms intentionally have no bottom navigation. */
@@ -148,7 +140,7 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
             modifier = Modifier.padding(padding)
         ) {
             composable(BarberRoute.AGENDA) {
-                BarberAgendaScreen(
+                BarberAgendaTimeline(
                     repository = repository,
                     token = token,
                     revision = revision,
@@ -262,110 +254,6 @@ private fun BackHeader(title: String, onBack: () -> Unit) {
     ) {
         TextButton(onClick = onBack) { Text("‹ Voltar") }
         Text(title, style = MaterialTheme.typography.titleMedium)
-    }
-}
-
-@Composable
-private fun BarberAgendaScreen(
-    repository: AgendaRepository,
-    token: String,
-    revision: Int,
-    onNew: () -> Unit,
-    onDetails: (String) -> Unit
-) {
-    var day by remember { mutableStateOf(LocalDate.now().toString()) }
-    var period by remember { mutableStateOf("day") }
-    var filter by remember { mutableStateOf("all") }
-    var reload by remember { mutableStateOf(0) }
-    val agendaViewModel: AgendaViewModel = viewModel(
-        factory = remember(repository) { AgendaViewModel.Factory(repository) }
-    )
-    val state by agendaViewModel.state.collectAsState()
-    LaunchedEffect(token, day, period, filter, reload, revision) {
-        if (validDate(day)) {
-            agendaViewModel.refresh(token, day, period, filter)
-        }
-    }
-    Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Spacer(Modifier.height(8.dp))
-        Text("Olá, barbeiro!", style = MaterialTheme.typography.headlineSmall)
-        Text("Sua agenda, seus resultados.", color = BarberTextSecondary)
-        OutlinedTextField(
-            value = day,
-            onValueChange = { day = it },
-            label = { Text("Data (AAAA-MM-DD)") },
-            isError = !validDate(day),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("day" to "Hoje", "week" to "Semana", "month" to "Mês").forEach { (value, label) ->
-                FilterChip(
-                    selected = period == value,
-                    onClick = { period = value },
-                    label = { Text(label) }
-                )
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("all" to "Todos", "SCHEDULED" to "Agendados", "COMPLETED" to "Concluídos")
-                .forEach { (value, label) ->
-                    FilterChip(
-                        selected = filter == value,
-                        onClick = { filter = value },
-                        label = { Text(label) }
-                    )
-                }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Atendimentos", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = { reload++ }) { Text("Atualizar") }
-            TextButton(onClick = onNew) { Text("+ Agendar") }
-        }
-        if (state.loading) CircularProgressIndicator()
-        if (state.error.isNotBlank()) {
-            Text(state.error, color = MaterialTheme.colorScheme.error)
-        }
-        if (state.offline) {
-            val time = state.lastSyncedAt?.let {
-                DateTimeFormatter.ofPattern("dd/MM HH:mm")
-                    .format(Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()))
-            } ?: "desconhecida"
-            Text("Modo offline · Última sincronização: " + time, color = BarberGold)
-        }
-        if (!state.loading && state.error.isBlank() && state.appointments.isEmpty()) {
-            EmptyState("Nenhum atendimento neste período.")
-        }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(state.appointments, key = { it.id }) { appointment ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().clickable { onDetails(appointment.id) },
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(appointment.clientName, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            appointment.serviceName + " · " + appointment.durationMinutes + " min",
-                            color = BarberTextSecondary
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(displayTime(appointment.startsAt))
-                            Spacer(Modifier.width(12.dp))
-                            Text(formatBrl(appointment.price))
-                            Spacer(Modifier.weight(1f))
-                            Text(
-                                statusText(appointment.status),
-                                color = statusColor(appointment.status)
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
