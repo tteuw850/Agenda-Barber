@@ -1,0 +1,38 @@
+name: Agenda Barber - API ativa durante o dia
+
+on:
+  schedule:
+    # 08:07 até 21:57 (horário de Brasília), a cada 10 minutos.
+    # Fora dessa janela, o Render Free pode entrar em repouso.
+    - cron: '7-57/10 8-21 * * *'
+      timezone: 'America/Sao_Paulo'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agenda-barber-dev-daytime-health
+  cancel-in-progress: false
+
+jobs:
+  health-check:
+    name: Verificar API dev (sem consultar o Neon)
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Acordar/verificar somente o HTTP health check
+        env:
+          HEALTH_URL: https://agenda-barber-api-dev.onrender.com/actuator/health
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A primeira requisição do dia pode acionar o cold start do Render.
+          response="$(curl --fail --silent --show-error --location \
+            --connect-timeout 15 --max-time 150 \
+            --retry 1 --retry-delay 5 \
+            -H 'User-Agent: AgendaBarber-Development-Monitor/1.0' \
+            "$HEALTH_URL")"
+          echo "$response"
+          printf '%s' "$response" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"'
+          echo 'API Agenda Barber DEV: UP'
