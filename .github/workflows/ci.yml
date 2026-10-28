@@ -1,4 +1,5 @@
 name: CI - Agenda Barber
+
 on:
   push:
     branches: [main]
@@ -8,10 +9,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     name: Java - Maven verify and Checkstyle
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v7
         with:
@@ -24,12 +30,23 @@ jobs:
           cache-dependency-path: backend/pom.xml
       - name: Java tests and Checkstyle
         run: mvn -B -ntp -f backend/pom.xml verify
-      - name: Validate production Dockerfile
+      - name: Validate production Dockerfile (build only, never push)
         run: docker build --tag agenda-barber-api:ci backend
+      - name: Upload Java test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports
+          path: |
+            backend/target/surefire-reports/*.xml
+            backend/target/failsafe-reports/*.xml
+          retention-days: 7
+          if-no-files-found: ignore
 
   android:
     name: Android - ktlint, tests, lint, build
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: android-app
@@ -49,7 +66,7 @@ jobs:
           gradle-version: '9.4.1'
       - name: Kotlin style, tests, Android Lint and APK
         run: gradle --no-daemon :app:ktlintCheck :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
-      - name: Publish debug APK for manual UI review
+      - name: Publish debug APK for manual UI review (never release)
         if: success()
         uses: actions/upload-artifact@v4
         with:
@@ -57,3 +74,13 @@ jobs:
           path: android-app/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
           if-no-files-found: error
+      - name: Upload Android test and lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-and-lint-reports
+          path: |
+            android-app/app/build/test-results/testDebugUnitTest/*.xml
+            android-app/app/build/reports/lint-results-debug.*
+          retention-days: 7
+          if-no-files-found: ignore
