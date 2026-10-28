@@ -1,5 +1,6 @@
 package com.agendabarber.app.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -10,13 +11,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.BarChart
@@ -51,7 +55,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -71,18 +74,17 @@ import com.agendabarber.app.network.ClientView
 import com.agendabarber.app.network.CreateClient
 import com.agendabarber.app.network.ServiceView
 import com.agendabarber.app.servicecatalog.formatBrl
-import com.agendabarber.app.ui.theme.AgendaBarberTheme
 import com.agendabarber.app.ui.theme.BarberBackground
+import com.agendabarber.app.ui.theme.BarberCancelAction
+import com.agendabarber.app.ui.theme.BarberCompleted
 import com.agendabarber.app.ui.theme.BarberGold
+import com.agendabarber.app.ui.theme.BarberInProgress
 import com.agendabarber.app.ui.theme.BarberOnGold
 import com.agendabarber.app.ui.theme.BarberOutline
 import com.agendabarber.app.ui.theme.BarberSurface
+import com.agendabarber.app.ui.theme.BarberSurfaceRaised
+import com.agendabarber.app.ui.theme.BarberTextPrimary
 import com.agendabarber.app.ui.theme.BarberTextSecondary
-import com.agendabarber.app.ui.theme.StatsBackground
-import com.agendabarber.app.ui.theme.StatsCancellationsCard
-import com.agendabarber.app.ui.theme.StatsCutsCard
-import com.agendabarber.app.ui.theme.StatsRevenueCard
-import com.agendabarber.app.ui.theme.StatsTicketCard
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -188,9 +190,7 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
                 BarberBlockScreen { navigation.popBackStack() }
             }
             composable(BarberRoute.STATS) {
-                AgendaBarberTheme(statisticsScreen = true) {
-                    BarberStatisticsScreen()
-                }
+                BarberStatisticsScreen()
             }
             composable(BarberRoute.MORE) {
                 BarberMoreScreen(
@@ -529,32 +529,134 @@ private fun BarberBlockScreen(onBack: () -> Unit) {
 @Composable
 private fun BarberStatisticsScreen() {
     Column(
-        Modifier.fillMaxSize().background(StatsBackground).padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BarberBackground)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 18.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Estatísticas", style = MaterialTheme.typography.headlineMedium)
-        Text("Painel em desenvolvimento. Os indicadores não foram consultados na API.")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Estatísticas",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = BarberTextPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "Seus resultados em um só lugar",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = BarberTextSecondary
+                )
+            }
+            Surface(shape = CircleShape, color = BarberGold.copy(alpha = 0.14f)) {
+                Icon(
+                    Icons.Outlined.BarChart,
+                    contentDescription = null,
+                    tint = BarberGold,
+                    modifier = Modifier.padding(12.dp).size(24.dp)
+                )
+            }
+        }
+
+        Surface(
+            color = BarberSurface,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, BarberOutline)
+        ) {
+            Text(
+                "Os indicadores serão exibidos após a integração com a API de resultados.",
+                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                color = BarberTextSecondary,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatCard("Faturamento", StatsRevenueCard, Modifier.weight(1f))
-            StatCard("Cortes realizados", StatsCutsCard, Modifier.weight(1f))
+            StatCard("Faturamento", BarberGold, Modifier.weight(1f))
+            StatCard("Cortes realizados", BarberCompleted, Modifier.weight(1f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatCard("Ticket médio", StatsTicketCard, Modifier.weight(1f))
-            StatCard("Cancelamentos", StatsCancellationsCard, Modifier.weight(1f))
+            StatCard("Ticket médio", BarberInProgress, Modifier.weight(1f))
+            StatCard("Cancelamentos", BarberCancelAction, Modifier.weight(1f))
         }
-        Text("Faturamento por dia", style = MaterialTheme.typography.titleMedium)
-        EmptyState("Gráfico disponível após integrar os indicadores reais.")
-        Text("Serviços mais realizados", style = MaterialTheme.typography.titleMedium)
-        EmptyState("Sem dados analíticos carregados.")
+
+        Text(
+            "Faturamento por dia",
+            style = MaterialTheme.typography.titleMedium,
+            color = BarberTextPrimary,
+            fontWeight = FontWeight.SemiBold
+        )
+        StatisticsEmptyPanel("Gráfico indisponível", "Aguardando dados de faturamento.")
+
+        Text(
+            "Serviços mais realizados",
+            style = MaterialTheme.typography.titleMedium,
+            color = BarberTextPrimary,
+            fontWeight = FontWeight.SemiBold
+        )
+        StatisticsEmptyPanel("Sem dados de serviços", "Os serviços aparecerão após a integração.")
+        Spacer(Modifier.height(12.dp))
     }
 }
 
 @Composable
-private fun StatCard(title: String, background: Color, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier, color = background, shape = RoundedCornerShape(14.dp)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(title, style = MaterialTheme.typography.labelLarge)
-            Text("—", style = MaterialTheme.typography.headlineMedium)
+private fun StatCard(title: String, accent: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.heightIn(min = 124.dp),
+        color = BarberSurfaceRaised,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, BarberOutline)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(8.dp).background(accent, CircleShape))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    title,
+                    color = BarberTextPrimary,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            Text("—", color = BarberGold, style = MaterialTheme.typography.headlineMedium)
+            Text(
+                "Aguardando dados",
+                color = BarberTextSecondary,
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatisticsEmptyPanel(title: String, description: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = BarberSurface,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, BarberOutline)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(Icons.Outlined.BarChart, contentDescription = null, tint = BarberGold)
+            Text(
+                title,
+                color = BarberTextPrimary,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                description,
+                color = BarberTextSecondary,
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }
