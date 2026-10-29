@@ -20,7 +20,6 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 @Testcontainers
 class FinancePersistenceIntegrationTests {
@@ -113,9 +112,9 @@ class FinancePersistenceIntegrationTests {
         assertThrows(AppointmentService.AppointmentConflictException.class,
                 () -> tx.execute(status -> appointments.complete(
                         owner.barber(), appointmentId, new BigDecimal("80.00"))));
-        assertNull(jdbc.queryForObject(
-                "SELECT received_amount FROM appointments WHERE id=? AND status='SCHEDULED'",
-                BigDecimal.class, appointmentId));
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT count(*) FROM appointments WHERE id=? AND status='COMPLETED'"
+                        + " AND received_amount=62.50", Integer.class, appointmentId));
     }
 
     private static Fixture fixture() {
