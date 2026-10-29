@@ -233,7 +233,7 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
                 )
             }
             composable(BarberRoute.SERVICES) {
-                BarberServicesScreen(api, token) { navigation.popBackStack() }
+                BarberServicesCatalogScreen(api, token) { navigation.popBackStack() }
             }
             composable(BarberRoute.BLOCK_TIME) {
                 BarberBlockScreen { navigation.popBackStack() }
@@ -311,46 +311,6 @@ private fun BackHeader(title: String, onBack: () -> Unit) {
     ) {
         TextButton(onClick = onBack) { Text("‹ Voltar") }
         Text(title, style = MaterialTheme.typography.titleMedium)
-    }
-}
-
-@Composable
-private fun BarberServicesScreen(api: AgendaApi, token: String, onBack: () -> Unit) {
-    var services by remember { mutableStateOf(emptyList<ServiceView>()) }
-    var error by remember { mutableStateOf("") }
-    var loading by remember { mutableStateOf(true) }
-    LaunchedEffect(token) {
-        loading = true
-        try {
-            services = api.services(token)
-            error = ""
-        } catch (failure: Exception) {
-            error = apiMessage(failure)
-        } finally {
-            loading = false
-        }
-    }
-    Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        BackHeader("Serviços", onBack)
-        if (loading) CircularProgressIndicator()
-        if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
-        if (!loading && error.isBlank() && services.isEmpty()) EmptyState("Nenhum serviço cadastrado.")
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(services, key = { it.id }) { service ->
-                Card(Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.ContentCut, contentDescription = null, tint = BarberGold)
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(service.name, fontWeight = FontWeight.Medium)
-                            Text(service.durationMinutes.toString() + " min", color = BarberTextSecondary)
-                        }
-                        Spacer(Modifier.weight(1f))
-                        Text(formatBrl(service.defaultPrice))
-                    }
-                }
-            }
-        }
     }
 }
 
