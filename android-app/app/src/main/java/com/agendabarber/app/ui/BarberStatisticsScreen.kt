@@ -22,7 +22,8 @@ import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.AttachMoney
 import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.LocalOffer
-import androidx.compose.material.icons.outlined.Closeimport androidx.compose.material3.Card
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
