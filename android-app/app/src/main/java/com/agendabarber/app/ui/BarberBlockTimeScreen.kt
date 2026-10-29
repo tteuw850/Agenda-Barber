@@ -3,7 +3,6 @@ package com.agendabarber.app.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -16,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -23,6 +23,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -32,9 +34,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -68,18 +67,17 @@ private enum class BlockDateTarget { START, UNTIL }
 private val displayDate = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 private val reasons = listOf("Almoço", "Compromisso", "Folga", "Feriado", "Outro")
 
-private fun dateLabel(raw: String): String =
-    runCatching { LocalDate.parse(raw).format(displayDate) }.getOrDefault(raw)
+private fun dateLabel(raw: String): String = runCatching {
+    LocalDate.parse(raw).format(displayDate)
+}.getOrDefault(raw)
 
-private fun dateTimeLabel(raw: String): String =
-    runCatching {
+private fun dateTimeLabel(raw: String): String = runCatching {
         DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
             .withZone(barberScheduleZone)
             .format(Instant.parse(raw))
     }.getOrDefault(raw)
 
-private fun blockError(failure: Exception): String =
-    when ((failure as? HttpException)?.code()) {
+private fun blockError(failure: Exception): String = when ((failure as? HttpException)?.code()) {
         409 -> "Conflito: existe um atendimento ou outro bloqueio nesse horário."
         400 -> "Verifique a data, os horários e a vigência do bloqueio."
         401, 403 -> "A sessão expirou ou não tem permissão para esta ação."
@@ -185,7 +183,11 @@ internal fun BarberBlockTimeScreen(api: AgendaApi, token: String, onBack: () -> 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(
                 value = startsAt,
-                onValueChange = { startsAt = it.take(5); message = ""; error = "" },
+                onValueChange = {
+                    startsAt = it.take(5)
+                    message = ""
+                    error = ""
+                },
                 label = { Text("Início") },
                 placeholder = { Text("08:00") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
@@ -195,7 +197,11 @@ internal fun BarberBlockTimeScreen(api: AgendaApi, token: String, onBack: () -> 
             )
             OutlinedTextField(
                 value = endsAt,
-                onValueChange = { endsAt = it.take(5); message = ""; error = "" },
+                onValueChange = {
+                    endsAt = it.take(5)
+                    message = ""
+                    error = ""
+                },
                 label = { Text("Fim") },
                 placeholder = { Text("09:00") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
@@ -217,7 +223,10 @@ internal fun BarberBlockTimeScreen(api: AgendaApi, token: String, onBack: () -> 
                 reasons.forEach { option ->
                     DropdownMenuItem(
                         text = { Text(option) },
-                        onClick = { reason = option; reasonMenu = false }
+                        onClick = {
+                            reason = option
+                            reasonMenu = false
+                        }
                     )
                 }
             }
@@ -266,7 +275,7 @@ internal fun BarberBlockTimeScreen(api: AgendaApi, token: String, onBack: () -> 
                                 oneTimeBlockPayload(date, startsAt, endsAt, reason, notes)
                             )
                         } else {
-                            api.createRecurringBlock(
+                            api.addWeekly(
                                 token,
                                 recurringBlockPayload(date, startsAt, endsAt, validUntil, reason, notes)
                             )
