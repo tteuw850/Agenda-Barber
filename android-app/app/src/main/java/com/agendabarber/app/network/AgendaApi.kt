@@ -49,6 +49,39 @@ data class ServiceWriteRequest(
     val active: Boolean,
     val iconKey: String
 )
+data class SingleBlockInput(
+    val startsAt: String,
+    val endsAt: String,
+    val reason: String?,
+    val notes: String?
+)
+data class SingleBlockView(
+    val id: String,
+    val startsAt: String,
+    val endsAt: String,
+    val reason: String?,
+    val notes: String?
+)
+data class RecurringBlockInput(
+    val weekday: Int,
+    val startsAt: String,
+    val endsAt: String,
+    val validFrom: String,
+    val validUntil: String,
+    val reason: String?,
+    val notes: String?
+)
+data class RecurringBlockView(
+    val id: String,
+    val weekday: Int,
+    val startsAt: String,
+    val endsAt: String,
+    val validFrom: String,
+    val validUntil: String,
+    val reason: String?,
+    val notes: String?
+)
+
 data class SlotView(val startsAt: String, val endsAt: String, val localStart: String)
 
 data class AppointmentView(
@@ -175,6 +208,39 @@ interface AgendaApi {
 
     @DELETE("api/v1/services/{id}")
     suspend fun deactivateService(@Header("Authorization") bearer: String, @Path("id") id: String)
+
+    @GET("api/v1/schedule/blocks")
+    suspend fun blocks(
+        @Header("Authorization") bearer: String,
+        @Query("date") date: String
+    ): List<SingleBlockView>
+
+    @POST("api/v1/schedule/blocks")
+    suspend fun createBlock(
+        @Header("Authorization") bearer: String,
+        @Body request: SingleBlockInput
+    ): SingleBlockView
+
+    @DELETE("api/v1/schedule/blocks/{id}")
+    suspend fun deleteBlock(
+        @Header("Authorization") bearer: String,
+        @Path("id") id: String
+    )
+
+    @GET("api/v1/schedule/recurring-blocks")
+    suspend fun recurringBlocks(@Header("Authorization") bearer: String): List<RecurringBlockView>
+
+    @POST("api/v1/schedule/recurring-blocks")
+    suspend fun createRecurringBlock(
+        @Header("Authorization") bearer: String,
+        @Body request: RecurringBlockInput
+    ): RecurringBlockView
+
+    @DELETE("api/v1/schedule/recurring-blocks/{id}")
+    suspend fun deleteRecurringBlock(
+        @Header("Authorization") bearer: String,
+        @Path("id") id: String
+    )
 
     @GET("api/v1/schedule/available-slots")
     suspend fun slots(
