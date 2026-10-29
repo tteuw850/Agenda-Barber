@@ -25,8 +25,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import com.agendabarber.app.network.AgendaApi
 import com.agendabarber.app.network.ClientView
 import com.agendabarber.app.ui.theme.BarberGold
-import com.agendabarber.app.ui.theme.BarberOnGold
 import com.agendabarber.app.ui.theme.BarberSurface
 import com.agendabarber.app.ui.theme.BarberTextSecondary
 import java.time.Instant
@@ -130,19 +127,11 @@ internal fun BarberClientsCatalogScreen(api: AgendaApi, token: String, refreshSi
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ClientFilter.entries.forEach { option ->
-                FilterChip(
-                    selected = filter == option,
-                    onClick = { filter = option },
-                    label = { Text(option.caption) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = BarberGold,
-                        selectedLabelColor = BarberOnGold
-                    )
-                )
-            }
-        }
+        BarberSegmentedSelector(
+            labels = ClientFilter.entries.map { it.caption },
+            selected = ClientFilter.entries.indexOf(filter),
+            onSelect = { filter = ClientFilter.entries[it] }
+        )
         if (loading) CircularProgressIndicator(color = BarberGold)
         if (error.isNotBlank()) {
             Text(error, color = MaterialTheme.colorScheme.error)
