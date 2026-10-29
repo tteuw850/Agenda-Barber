@@ -157,10 +157,7 @@ interface AgendaApi {
     ): List<ServiceView>
 
     @POST("api/v1/services")
-    suspend fun createService(
-        @Header("Authorization") bearer: String,
-        @Body request: ServiceWriteRequest
-    ): ServiceView
+    suspend fun createService(@Header("Authorization") bearer: String, @Body request: ServiceWriteRequest): ServiceView
 
     @PATCH("api/v1/services/{id}")
     suspend fun updateService(
@@ -177,10 +174,7 @@ interface AgendaApi {
     ): ServiceView
 
     @DELETE("api/v1/services/{id}")
-    suspend fun deactivateService(
-        @Header("Authorization") bearer: String,
-        @Path("id") id: String
-    )
+    suspend fun deactivateService(@Header("Authorization") bearer: String, @Path("id") id: String)
 
     @GET("api/v1/schedule/available-slots")
     suspend fun slots(
