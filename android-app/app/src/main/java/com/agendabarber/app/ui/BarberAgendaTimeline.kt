@@ -60,7 +60,6 @@ import com.agendabarber.app.ui.theme.BarberGold
 import com.agendabarber.app.ui.theme.BarberOnGold
 import com.agendabarber.app.ui.theme.BarberOutline
 import com.agendabarber.app.ui.theme.BarberSurface
-import com.agendabarber.app.ui.theme.BarberSurfaceRaised
 import com.agendabarber.app.ui.theme.BarberTextPrimary
 import com.agendabarber.app.ui.theme.BarberTextSecondary
 import java.time.DayOfWeek
@@ -447,8 +446,8 @@ private fun AgendaTimelineCard(item: AppointmentView, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        color = BarberSurfaceRaised,
-        border = BorderStroke(1.dp, BarberOutline),
+        color = Color(0xFFFAFAFA),
+        border = BorderStroke(1.dp, Color(0xFFDDE2E8)),
         shape = RoundedCornerShape(14.dp)
     ) {
         Row(
@@ -456,11 +455,11 @@ private fun AgendaTimelineCard(item: AppointmentView, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(shape = CircleShape, color = BarberGold.copy(alpha = 0.17f)) {
+            Surface(shape = CircleShape, color = Color(0xFFE8EBEF)) {
                 Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
                     Text(
                         item.clientName.trim().take(1).uppercase(brazil).ifBlank { "?" },
-                        color = BarberGold,
+                        color = Color(0xFF253040),
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -468,7 +467,7 @@ private fun AgendaTimelineCard(item: AppointmentView, onClick: () -> Unit) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(
                     item.clientName,
-                    color = BarberTextPrimary,
+                    color = Color(0xFF15171C),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -477,13 +476,13 @@ private fun AgendaTimelineCard(item: AppointmentView, onClick: () -> Unit) {
                 Text(
                     item.serviceName + " · " + item.durationMinutes + " min",
                     style = MaterialTheme.typography.bodySmall,
-                    color = BarberTextSecondary,
+                    color = Color(0xFF606672),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     item.localTime() + " – " + item.localEndTime(),
-                    color = BarberGold,
+                    color = Color(0xFF50545C),
                     style = MaterialTheme.typography.labelMedium
                 )
                 val accent = statusColor(item.status)
@@ -498,7 +497,7 @@ private fun AgendaTimelineCard(item: AppointmentView, onClick: () -> Unit) {
             }
             Icon(
                 Icons.Outlined.ChevronRight,
-                tint = BarberTextSecondary,
+                tint = Color(0xFF555B65),
                 contentDescription = "Detalhes do atendimento"
             )
         }

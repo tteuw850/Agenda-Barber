@@ -12,8 +12,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -26,8 +26,6 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -58,6 +56,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
@@ -138,28 +138,20 @@ internal fun BarberBlockTimeScreen(api: AgendaApi, token: String, onBack: () -> 
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Voltar")
+                Icon(Icons.Outlined.Close, contentDescription = "Fechar bloqueio")
             }
             Text("Bloquear Horário", style = MaterialTheme.typography.titleLarge)
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            BlockMode.entries.forEach { option ->
-                FilterChip(
-                    selected = mode == option,
-                    onClick = {
-                        mode = option
-                        message = ""
-                        error = ""
-                    },
-                    label = { Text(option.label) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = BarberGold,
-                        selectedLabelColor = BarberOnGold
-                    )
-                )
+        BarberSegmentedSelector(
+            labels = BlockMode.entries.map { it.label },
+            selected = BlockMode.entries.indexOf(mode),
+            onSelect = {
+                mode = BlockMode.entries[it]
+                message = ""
+                error = ""
             }
-        }
+        )
 
         BlockDateField(
             label = if (mode == BlockMode.SINGLE) "Data" else "Início da vigência",
@@ -169,7 +161,9 @@ internal fun BarberBlockTimeScreen(api: AgendaApi, token: String, onBack: () -> 
         )
         if (mode == BlockMode.RECURRING) {
             Text(
-                "Repetição semanal: ${runCatching { LocalDate.parse(date).dayOfWeek.name }.getOrDefault("-")}",
+                "Repetição semanal: ${runCatching {
+                    LocalDate.parse(date).dayOfWeek.getDisplayName(TextStyle.FULL, Locale.forLanguageTag("pt-BR"))
+                }.getOrDefault("-")}",
                 color = BarberTextSecondary,
                 style = MaterialTheme.typography.bodySmall
             )
