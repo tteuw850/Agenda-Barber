@@ -59,15 +59,14 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-internal fun lastCacheWriteCaption(value: Long?): String =
-    if (value == null) {
-        "Nenhuma gravação de cache confirmada nesta sessão."
-    } else {
-        val timestamp = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
-            .withZone(ZoneId.of("America/Sao_Paulo"))
-            .format(Instant.ofEpochMilli(value))
-        "Última gravação do cache nesta sessão: $timestamp."
-    }
+internal fun lastCacheWriteCaption(value: Long?): String = if (value == null) {
+    "Nenhuma gravação de cache confirmada nesta sessão."
+} else {
+    val timestamp = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+        .withZone(ZoneId.of("America/Sao_Paulo"))
+        .format(Instant.ofEpochMilli(value))
+    "Última gravação do cache nesta sessão: $timestamp."
+}
 
 internal enum class MoreInfo(val title: String, val detail: String) {
     PROFILE(
