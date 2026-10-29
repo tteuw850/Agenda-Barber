@@ -153,6 +153,9 @@ internal fun BarberAppointmentDetails(
                     if (amount == null) {
                         Text("Informe um valor válido, com até duas casas decimais.")
                     }
+                    if (error.isNotBlank()) {
+                        Text(error, color = MaterialTheme.colorScheme.error)
+                    }
                 }
             },
             confirmButton = {
@@ -226,6 +229,7 @@ internal fun BarberAppointmentDetails(
                         onClick = {
                             if (current.status == "IN_PROGRESS") {
                                 receivedInput = current.price.toPlainString()
+                                error = ""
                                 confirmComplete = true
                             } else {
                                 busy = true
