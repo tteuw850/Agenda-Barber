@@ -20,6 +20,7 @@ import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -97,7 +98,7 @@ public class ReportService {
                         + " count(*) FILTER (WHERE s.is_haircut) AS haircuts,"
                         + " COALESCE(sum(a.received_amount),0) AS revenue"
                         + COMPLETED + " GROUP BY local_day",
-                rs -> appointments.put(rs.getObject("local_day", LocalDate.class),
+                (RowCallbackHandler) rs -> appointments.put(rs.getObject("local_day", LocalDate.class),
                         new Counts(rs.getLong("completed"), rs.getLong("haircuts"),
                                 0, 0, rs.getBigDecimal("revenue"))),
                 period.zone().getId(), barberId, period.start(), period.end());
@@ -105,7 +106,7 @@ public class ReportService {
         jdbc.query("SELECT occurred_on, sum(amount) AS total FROM expenses"
                         + " WHERE barber_id=? AND deleted_at IS NULL"
                         + " AND occurred_on BETWEEN ? AND ? GROUP BY occurred_on",
-                rs -> expenses.put(rs.getObject("occurred_on", LocalDate.class),
+                (RowCallbackHandler) rs -> expenses.put(rs.getObject("occurred_on", LocalDate.class),
                         rs.getBigDecimal("total")),
                 barberId, period.from(), period.to());
         List<DailyMetric> result = new ArrayList<>();
