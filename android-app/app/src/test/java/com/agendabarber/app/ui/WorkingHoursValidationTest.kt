@@ -33,6 +33,18 @@ class WorkingHoursValidationTest {
     }
 
     @Test
+    fun cacheStatusIsHonestAndTimezoneSpecific() {
+        assertEquals(
+            "Nenhuma gravação de cache confirmada nesta sessão.",
+            lastCacheWriteCaption(null)
+        )
+        assertEquals(
+            "Última gravação do cache nesta sessão: 29/10/2026 09:00.",
+            lastCacheWriteCaption(1793275200000L)
+        )
+    }
+
+    @Test
     fun distinguishesUnavailableFeaturesFromWorkingActions() {
         assertEquals("Backup e sincronização", MoreInfo.BACKUP.title)
         assertEquals("Tema", MoreInfo.THEME.title)
