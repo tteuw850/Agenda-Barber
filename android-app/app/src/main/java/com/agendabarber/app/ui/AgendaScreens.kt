@@ -1,7 +1,9 @@
 package com.agendabarber.app.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -36,6 +38,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.agendabarber.app.R
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -66,15 +72,29 @@ fun AgendaApp() {
     var error by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var showPassword by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(true) }
+    var showSettings by remember { mutableStateOf(false) }
     var recoveryNotice by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val currentToken = token
     if (currentToken == null) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Image(
+                painter = painterResource(R.drawable.login_barber_photo),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+            Box(
+                modifier = Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        0f to Color.Black.copy(alpha = 0.55f),
+                        0.48f to Color.Black.copy(alpha = 0.63f),
+                        1f to BarberBackground.copy(alpha = 0.97f)
+                    )
+                )
+            )
         Column(
-            modifier = Modifier.fillMaxSize().background(
-                BarberBackground
-            ).verticalScroll(rememberScrollState()).imePadding().padding(24.dp),
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(24.dp),
             verticalArrangement = Arrangement.Center
         ) {
             Icon(
@@ -84,14 +104,20 @@ fun AgendaApp() {
                 modifier = Modifier.align(Alignment.CenterHorizontally).height(56.dp)
             )
             Text(
-                "BARBER AGENDA",
-                color = BarberGold,
+                "BARBER",
+                color = Color.White,
                 style = MaterialTheme.typography.headlineLarge,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
             Text(
+                "AGENDA",
+                color = Color.White,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+            Text(
                 "Sua agenda, seus resultados.",
-                color = BarberTextSecondary,
+                color = Color.White,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
             Spacer(Modifier.height(16.dp))
@@ -170,6 +196,7 @@ fun AgendaApp() {
                 }
             ) { Text(if (busy) "Conectando..." else "Entrar") }
             Text("Login e senha não são salvos no dispositivo. A API precisa estar publicada.")
+        }
         }
         return
     }
