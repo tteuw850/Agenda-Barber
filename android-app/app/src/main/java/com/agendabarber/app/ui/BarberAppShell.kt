@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,12 +24,10 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -43,7 +39,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -65,8 +60,6 @@ import androidx.room.Room
 import com.agendabarber.app.cache.AgendaCacheDatabase
 import com.agendabarber.app.cache.AgendaRepository
 import com.agendabarber.app.network.AgendaApi
-import com.agendabarber.app.network.ServiceView
-import com.agendabarber.app.servicecatalog.formatBrl
 import com.agendabarber.app.ui.theme.BarberBackground
 import com.agendabarber.app.ui.theme.BarberCancelAction
 import com.agendabarber.app.ui.theme.BarberCompleted
@@ -233,7 +226,7 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
                 )
             }
             composable(BarberRoute.SERVICES) {
-                BarberServicesScreen(api, token) { navigation.popBackStack() }
+                BarberServicesCatalogScreen(api, token) { navigation.popBackStack() }
             }
             composable(BarberRoute.BLOCK_TIME) {
                 BarberBlockScreen { navigation.popBackStack() }
@@ -311,46 +304,6 @@ private fun BackHeader(title: String, onBack: () -> Unit) {
     ) {
         TextButton(onClick = onBack) { Text("‹ Voltar") }
         Text(title, style = MaterialTheme.typography.titleMedium)
-    }
-}
-
-@Composable
-private fun BarberServicesScreen(api: AgendaApi, token: String, onBack: () -> Unit) {
-    var services by remember { mutableStateOf(emptyList<ServiceView>()) }
-    var error by remember { mutableStateOf("") }
-    var loading by remember { mutableStateOf(true) }
-    LaunchedEffect(token) {
-        loading = true
-        try {
-            services = api.services(token)
-            error = ""
-        } catch (failure: Exception) {
-            error = apiMessage(failure)
-        } finally {
-            loading = false
-        }
-    }
-    Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        BackHeader("Serviços", onBack)
-        if (loading) CircularProgressIndicator()
-        if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
-        if (!loading && error.isBlank() && services.isEmpty()) EmptyState("Nenhum serviço cadastrado.")
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(services, key = { it.id }) { service ->
-                Card(Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.ContentCut, contentDescription = null, tint = BarberGold)
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(service.name, fontWeight = FontWeight.Medium)
-                            Text(service.durationMinutes.toString() + " min", color = BarberTextSecondary)
-                        }
-                        Spacer(Modifier.weight(1f))
-                        Text(formatBrl(service.defaultPrice))
-                    }
-                }
-            }
-        }
     }
 }
 

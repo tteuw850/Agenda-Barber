@@ -5,6 +5,7 @@ import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.PATCH
@@ -30,7 +31,24 @@ data class ClientView(
     val lastAppointmentAt: String? = null,
     val photoUrl: String? = null
 )
-data class ServiceView(val id: String, val name: String, val durationMinutes: Int, val defaultPrice: BigDecimal)
+data class ServiceView(
+    val id: String,
+    val name: String,
+    val durationMinutes: Int,
+    val defaultPrice: BigDecimal,
+    val isHaircut: Boolean = false,
+    val active: Boolean = true,
+    val iconKey: String = "SCISSORS"
+)
+
+data class ServiceWriteRequest(
+    val name: String,
+    val durationMinutes: Int,
+    val defaultPrice: BigDecimal,
+    val isHaircut: Boolean,
+    val active: Boolean,
+    val iconKey: String
+)
 data class SlotView(val startsAt: String, val endsAt: String, val localStart: String)
 
 data class AppointmentView(
@@ -137,6 +155,26 @@ interface AgendaApi {
         @Header("Authorization") bearer: String,
         @Query("activeOnly") activeOnly: Boolean = true
     ): List<ServiceView>
+
+    @POST("api/v1/services")
+    suspend fun createService(@Header("Authorization") bearer: String, @Body request: ServiceWriteRequest): ServiceView
+
+    @PATCH("api/v1/services/{id}")
+    suspend fun updateService(
+        @Header("Authorization") bearer: String,
+        @Path("id") id: String,
+        @Body request: ServiceWriteRequest
+    ): ServiceView
+
+    @PATCH("api/v1/services/{id}")
+    suspend fun setServiceActive(
+        @Header("Authorization") bearer: String,
+        @Path("id") id: String,
+        @Body patch: Map<String, Boolean>
+    ): ServiceView
+
+    @DELETE("api/v1/services/{id}")
+    suspend fun deactivateService(@Header("Authorization") bearer: String, @Path("id") id: String)
 
     @GET("api/v1/schedule/available-slots")
     suspend fun slots(
