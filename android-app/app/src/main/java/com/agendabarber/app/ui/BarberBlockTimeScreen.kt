@@ -49,6 +49,7 @@ import com.agendabarber.app.network.AgendaApi
 import com.agendabarber.app.network.RecurringBlockView
 import com.agendabarber.app.network.SingleBlockView
 import com.agendabarber.app.ui.theme.BarberGold
+import com.agendabarber.app.ui.theme.BarberOnGold
 import com.agendabarber.app.ui.theme.BarberSurfaceRaised
 import com.agendabarber.app.ui.theme.BarberTextSecondary
 import java.time.Instant
