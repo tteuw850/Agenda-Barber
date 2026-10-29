@@ -21,7 +21,15 @@ data class LoginResponse(
     val expiresInSeconds: Long
 )
 
-data class ClientView(val id: String, val name: String, val phone: String?)
+data class ClientView(
+    val id: String,
+    val name: String,
+    val phone: String?,
+    val favorite: Boolean = false,
+    val completedAppointments: Long = 0,
+    val lastAppointmentAt: String? = null,
+    val photoUrl: String? = null
+)
 data class ServiceView(val id: String, val name: String, val durationMinutes: Int, val defaultPrice: BigDecimal)
 data class SlotView(val startsAt: String, val endsAt: String, val localStart: String)
 
@@ -110,8 +118,16 @@ interface AgendaApi {
     suspend fun clients(
         @Header("Authorization") bearer: String,
         @Query("search") search: String,
-        @Query("limit") limit: Int = 100
+        @Query("limit") limit: Int = 100,
+        @Query("filter") filter: String = "all"
     ): List<ClientView>
+
+    @PATCH("api/v1/clients/{id}")
+    suspend fun favoriteClient(
+        @Header("Authorization") bearer: String,
+        @Path("id") id: String,
+        @Body patch: Map<String, Boolean>
+    ): ClientView
 
     @POST("api/v1/clients")
     suspend fun newClient(@Header("Authorization") bearer: String, @Body request: CreateClient): ClientView
