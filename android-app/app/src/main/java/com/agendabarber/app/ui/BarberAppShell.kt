@@ -26,7 +26,6 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -229,7 +228,7 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
                 BarberServicesCatalogScreen(api, token) { navigation.popBackStack() }
             }
             composable(BarberRoute.BLOCK_TIME) {
-                BarberBlockScreen { navigation.popBackStack() }
+                BarberBlockTimeScreen(api, token) { navigation.popBackStack() }
             }
             composable(BarberRoute.STATS) {
                 BarberStatisticsScreen()
@@ -304,20 +303,6 @@ private fun BackHeader(title: String, onBack: () -> Unit) {
     ) {
         TextButton(onClick = onBack) { Text("‹ Voltar") }
         Text(title, style = MaterialTheme.typography.titleMedium)
-    }
-}
-
-@Composable
-private fun BarberBlockScreen(onBack: () -> Unit) {
-    Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        BackHeader("Bloquear Horário", onBack)
-        Icon(Icons.Outlined.Schedule, contentDescription = null, tint = BarberGold)
-        Text("Bloqueios únicos e recorrentes", style = MaterialTheme.typography.titleLarge)
-        Text(
-            "A API já possui expediente e bloqueios. O formulário UX-08 será conectado na etapa dedicada.",
-            color = BarberTextSecondary
-        )
-        EmptyState("Nenhum bloqueio fictício foi criado.")
     }
 }
 
