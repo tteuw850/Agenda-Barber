@@ -72,18 +72,18 @@ private fun dateLabel(raw: String): String = runCatching {
 }.getOrDefault(raw)
 
 private fun dateTimeLabel(raw: String): String = runCatching {
-        DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
-            .withZone(barberScheduleZone)
-            .format(Instant.parse(raw))
-    }.getOrDefault(raw)
+    DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+        .withZone(barberScheduleZone)
+        .format(Instant.parse(raw))
+}.getOrDefault(raw)
 
 private fun blockError(failure: Exception): String = when ((failure as? HttpException)?.code()) {
-        409 -> "Conflito: existe um atendimento ou outro bloqueio nesse horário."
-        400 -> "Verifique a data, os horários e a vigência do bloqueio."
-        401, 403 -> "A sessão expirou ou não tem permissão para esta ação."
-        503 -> "Serviço indisponível. Nenhum bloqueio foi confirmado."
-        else -> "Operação não confirmada. Verifique a conexão e tente novamente."
-    }
+    409 -> "Conflito: existe um atendimento ou outro bloqueio nesse horário."
+    400 -> "Verifique a data, os horários e a vigência do bloqueio."
+    401, 403 -> "A sessão expirou ou não tem permissão para esta ação."
+    503 -> "Serviço indisponível. Nenhum bloqueio foi confirmado."
+    else -> "Operação não confirmada. Verifique a conexão e tente novamente."
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
