@@ -2,6 +2,7 @@ package com.agendabarber.backend.common;
 
 import com.agendabarber.backend.appointments.AppointmentService;
 import com.agendabarber.backend.auth.AuthService;
+import com.agendabarber.backend.finance.ExpenseService;
 import com.agendabarber.backend.auth.AuthSessionService;
 import com.agendabarber.backend.auth.LoginRateLimiter;
 import com.agendabarber.backend.servicecatalog.ServiceCatalogService;
@@ -110,6 +111,21 @@ public class ApiExceptionHandler {
                        AgendaSchedulingService.ScheduleConflictException.class})
     ResponseEntity<ProblemDetail> schedulingConflict(RuntimeException ignored) {
         return problem(HttpStatus.CONFLICT, "Conflict", "Requested time is unavailable.");
+    }
+
+    @ExceptionHandler(ExpenseService.InvalidExpenseException.class)
+    ResponseEntity<ProblemDetail> invalidExpense(ExpenseService.InvalidExpenseException ignored) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid request", "Invalid expense data.");
+    }
+
+    @ExceptionHandler(ExpenseService.ExpenseNotFoundException.class)
+    ResponseEntity<ProblemDetail> missingExpense(ExpenseService.ExpenseNotFoundException ignored) {
+        return problem(HttpStatus.NOT_FOUND, "Not found", "Expense not found.");
+    }
+
+    @ExceptionHandler(ExpenseService.ExpenseConflictException.class)
+    ResponseEntity<ProblemDetail> conflictingExpense(ExpenseService.ExpenseConflictException ignored) {
+        return problem(HttpStatus.CONFLICT, "Conflict", "Expense idempotency conflict.");
     }
 
     @ExceptionHandler(AppointmentService.AppointmentNotFoundException.class)
