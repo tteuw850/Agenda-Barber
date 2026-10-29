@@ -1,26 +1,20 @@
 package com.agendabarber.app.ui
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -41,7 +35,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -71,6 +64,7 @@ internal object BarberRoute {
     const val NEW_CLIENT = "new-client"
     const val SERVICES = "services"
     const val BLOCK_TIME = "block-time"
+    const val WORKING_HOURS = "working-hours"
     const val DETAILS = "appointment/{id}"
     val bottomDestinations = setOf(AGENDA, CLIENTS, STATS, MORE)
 }
@@ -219,11 +213,17 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
             composable(BarberRoute.BLOCK_TIME) {
                 BarberBlockTimeScreen(api, token) { navigation.popBackStack() }
             }
+            composable(BarberRoute.WORKING_HOURS) {
+                BarberWorkingHoursScreen(api, token) { navigation.popBackStack() }
+            }
             composable(BarberRoute.STATS) {
                 BarberStatisticsScreen()
             }
             composable(BarberRoute.MORE) {
-                BarberMoreScreen(
+                val lastCacheWriteAt by repository.lastCacheWriteAt.collectAsState()
+                BarberMoreSettingsScreen(
+                    lastCacheWriteAt = lastCacheWriteAt,
+                    onWorkingHours = { navigation.navigate(BarberRoute.WORKING_HOURS) },
                     onServices = { navigation.navigate(BarberRoute.SERVICES) },
                     onBlocks = { navigation.navigate(BarberRoute.BLOCK_TIME) },
                     onLogout = {
@@ -292,39 +292,6 @@ private fun BackHeader(title: String, onBack: () -> Unit) {
     ) {
         TextButton(onClick = onBack) { Text("‹ Voltar") }
         Text(title, style = MaterialTheme.typography.titleMedium)
-    }
-}
-
-@Composable
-private fun BarberMoreScreen(onServices: () -> Unit, onBlocks: () -> Unit, onLogout: () -> Unit) {
-    Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Mais", style = MaterialTheme.typography.headlineSmall)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Avatar("Barbeiro")
-            Spacer(Modifier.width(12.dp))
-            Column {
-                Text("Meu perfil", fontWeight = FontWeight.SemiBold)
-                Text("Área interna do barbeiro", color = BarberTextSecondary)
-            }
-        }
-        MenuAction("Serviços", onServices)
-        MenuAction("Horário de funcionamento e bloqueios", onBlocks)
-        MenuAction("Sair da conta", onLogout)
-        Text("Notificações, sincronização e tema serão implementados nas próximas etapas.", color = BarberTextSecondary)
-    }
-}
-
-@Composable
-private fun MenuAction(label: String, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(label)
-            Spacer(Modifier.weight(1f))
-            Icon(Icons.Outlined.ChevronRight, contentDescription = null)
-        }
     }
 }
 

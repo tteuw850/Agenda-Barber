@@ -8,6 +8,8 @@ import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import retrofit2.HttpException
 
@@ -19,6 +21,8 @@ data class AgendaLoadResult(val appointments: List<AppointmentView>, val fromCac
  */
 class AgendaRepository(private val api: AgendaApi, private val dao: AgendaCacheDao, private val gson: Gson = Gson()) {
     private val listType = object : TypeToken<List<AppointmentView>>() {}.type
+    private val _lastCacheWriteAt = MutableStateFlow<Long?>(null)
+    val lastCacheWriteAt = _lastCacheWriteAt.asStateFlow()
 
     suspend fun appointments(token: String, date: String, view: String, status: String): AgendaLoadResult {
         val key = cacheKey(token, date, view, status)
@@ -30,6 +34,8 @@ class AgendaRepository(private val api: AgendaApi, private val dao: AgendaCacheD
                 withContext(Dispatchers.IO) {
                     dao.upsert(AgendaSnapshot(key, gson.toJson(live), synchronizedAt))
                 }
+            }.onSuccess {
+                _lastCacheWriteAt.value = synchronizedAt
             }
             return AgendaLoadResult(live, false, synchronizedAt)
         } catch (failure: Exception) {
@@ -44,6 +50,7 @@ class AgendaRepository(private val api: AgendaApi, private val dao: AgendaCacheD
 
     suspend fun clear() {
         withContext(Dispatchers.IO) { dao.clearAll() }
+        _lastCacheWriteAt.value = null
     }
 
     private fun cacheKey(token: String, date: String, view: String, status: String): String {

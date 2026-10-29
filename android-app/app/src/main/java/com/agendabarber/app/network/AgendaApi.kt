@@ -10,6 +10,7 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -49,6 +50,9 @@ data class ServiceWriteRequest(
     val active: Boolean,
     val iconKey: String
 )
+data class WorkingHoursInput(val enabled: Boolean, val opensAt: String, val closesAt: String)
+data class WorkingHoursView(val weekday: Int, val enabled: Boolean, val opensAt: String, val closesAt: String)
+
 data class SingleBlockInput(val startsAt: String, val endsAt: String, val reason: String?, val notes: String?)
 data class SingleBlockView(
     val id: String,
@@ -203,6 +207,16 @@ interface AgendaApi {
 
     @DELETE("api/v1/services/{id}")
     suspend fun deactivateService(@Header("Authorization") bearer: String, @Path("id") id: String)
+
+    @GET("api/v1/schedule/working-hours")
+    suspend fun workingHours(@Header("Authorization") bearer: String): List<WorkingHoursView>
+
+    @PUT("api/v1/schedule/working-hours/{weekday}")
+    suspend fun saveWorkingHours(
+        @Header("Authorization") bearer: String,
+        @Path("weekday") weekday: Int,
+        @Body request: WorkingHoursInput
+    ): WorkingHoursView
 
     @GET("api/v1/schedule/blocks")
     suspend fun blocks(@Header("Authorization") bearer: String, @Query("date") date: String): List<SingleBlockView>
