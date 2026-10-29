@@ -17,12 +17,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AttachMoney
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.AttachMoney
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.LocalOffer
-import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -133,7 +133,13 @@ internal fun StatisticsDashboard(
             StatisticsKpi(
                 title = "Faturamento",
                 value = snapshot?.let { formatBrl(it.revenue) } ?: "—",
-                subtitle = if (isDemonstration) "↑ 12% • exemplo" else if (snapshot == null) "Sem dados" else "No mês",
+                subtitle = if (isDemonstration) {
+                    "↑ 12% • exemplo"
+                } else if (snapshot == null) {
+                    "Sem dados"
+                } else {
+                    "No mês"
+                },
                 icon = Icons.Outlined.AttachMoney,
                 background = StatsRevenueCard,
                 modifier = Modifier.weight(1f)
@@ -141,7 +147,15 @@ internal fun StatisticsDashboard(
             StatisticsKpi(
                 title = "Cortes realizados",
                 value = snapshot?.completedCuts?.toString() ?: "—",
-                subtitle = if (isDemonstration) "↑ 8% • exemplo" else if (snapshot == null) "Sem dados" else "Concluídos",
+                subtitle = if (isDemonstration) {
+                    "↑ 8% • exemplo"
+                } else if (snapshot ==
+                    null
+                ) {
+                    "Sem dados"
+                } else {
+                    "Concluídos"
+                },
                 icon = Icons.Outlined.ContentCut,
                 background = StatsCutsCard,
                 modifier = Modifier.weight(1f)
@@ -151,7 +165,15 @@ internal fun StatisticsDashboard(
             StatisticsKpi(
                 title = "Ticket médio",
                 value = snapshot?.let { formatBrl(it.averageTicket) } ?: "—",
-                subtitle = if (isDemonstration) "↑ 5% • exemplo" else if (snapshot == null) "Sem dados" else "Por atendimento",
+                subtitle = if (isDemonstration) {
+                    "↑ 5% • exemplo"
+                } else if (snapshot ==
+                    null
+                ) {
+                    "Sem dados"
+                } else {
+                    "Por atendimento"
+                },
                 icon = Icons.Outlined.LocalOffer,
                 background = StatsTicketCard,
                 modifier = Modifier.weight(1f)
@@ -159,7 +181,13 @@ internal fun StatisticsDashboard(
             StatisticsKpi(
                 title = "Cancelamentos",
                 value = snapshot?.cancellations?.toString() ?: "—",
-                subtitle = if (isDemonstration) "↓ 2% • exemplo" else if (snapshot == null) "Sem dados" else "No mês",
+                subtitle = if (isDemonstration) {
+                    "↓ 2% • exemplo"
+                } else if (snapshot == null) {
+                    "Sem dados"
+                } else {
+                    "No mês"
+                },
                 icon = Icons.Outlined.Close,
                 background = StatsCancellationsCard,
                 modifier = Modifier.weight(1f)

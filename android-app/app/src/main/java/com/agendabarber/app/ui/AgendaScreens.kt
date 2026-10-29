@@ -37,15 +37,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import com.agendabarber.app.R
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.agendabarber.app.R
 import com.agendabarber.app.network.AgendaApiFactory
 import com.agendabarber.app.network.LoginRequest
 import com.agendabarber.app.ui.theme.BarberBackground
@@ -55,7 +55,6 @@ import com.agendabarber.app.ui.theme.BarberGold
 import com.agendabarber.app.ui.theme.BarberInProgress
 import com.agendabarber.app.ui.theme.BarberOnGold
 import com.agendabarber.app.ui.theme.BarberScheduled
-import com.agendabarber.app.ui.theme.BarberTextSecondary
 import kotlinx.coroutines.launch
 
 internal fun validLoginInput(email: String, password: String, url: String): Boolean =
@@ -93,110 +92,110 @@ fun AgendaApp() {
                     )
                 )
             )
-        Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(24.dp),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Icon(
-                Icons.Outlined.ContentCut,
-                null,
-                tint = BarberGold,
-                modifier = Modifier.align(Alignment.CenterHorizontally).height(56.dp)
-            )
-            Text(
-                "BARBER",
-                color = Color.White,
-                style = MaterialTheme.typography.headlineLarge,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
-            Text(
-                "AGENDA",
-                color = Color.White,
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
-            Text(
-                "Sua agenda, seus resultados.",
-                color = Color.White,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
-            Spacer(Modifier.height(16.dp))
-            if (showSettings) {
+            Column(
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(24.dp),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    Icons.Outlined.ContentCut,
+                    null,
+                    tint = BarberGold,
+                    modifier = Modifier.align(Alignment.CenterHorizontally).height(56.dp)
+                )
+                Text(
+                    "BARBER",
+                    color = Color.White,
+                    style = MaterialTheme.typography.headlineLarge,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+                Text(
+                    "AGENDA",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+                Text(
+                    "Sua agenda, seus resultados.",
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+                Spacer(Modifier.height(16.dp))
+                if (showSettings) {
+                    OutlinedTextField(
+                        value = url,
+                        onValueChange = { url = it },
+                        label = { Text("Endereço HTTPS da API") },
+                        enabled = !busy,
+                        placeholder = { Text("https://api.exemplo.com/") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
                 OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    label = { Text("Endereço HTTPS da API") },
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("E-mail") },
                     enabled = !busy,
-                    placeholder = { Text("https://api.exemplo.com/") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    leadingIcon = { Icon(Icons.Outlined.Email, null) },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
-            }
-            OutlinedTextField(
-                value = email,
-                onValueChange = { email = it },
-                label = { Text("E-mail") },
-                enabled = !busy,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                leadingIcon = { Icon(Icons.Outlined.Email, null) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                label = { Text("Senha") },
-                enabled = !busy,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                leadingIcon = { Icon(Icons.Outlined.Lock, null) },
-                trailingIcon = {
-                    IconButton(onClick = {
-                        showPassword = !showPassword
-                    }) {
-                        Icon(
-                            if (showPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                            if (showPassword) "Ocultar senha" else "Mostrar senha"
-                        )
-                    }
-                },
-                singleLine = true,
-                visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth()
-            )
-            TextButton(enabled = !busy, onClick = {
-                recoveryNotice = !recoveryNotice
-            }) { Text("Esqueci minha senha", color = BarberGold) }
-            if (recoveryNotice) Text("Recuperação indisponível. Contate o administrador.")
-            TextButton(enabled = !busy, onClick = {
-                showSettings = !showSettings
-            }) { Text("API HTTPS", color = BarberGold) }
-            if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
-            Button(
-                enabled = !busy && validLoginInput(email, password, url),
-                colors = ButtonDefaults.buttonColors(containerColor = BarberGold, contentColor = BarberOnGold),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    busy = true
-                    scope.launch {
-                        try {
-                            val client = AgendaApiFactory.create(url)
-                            val response = client.login(LoginRequest(email.trim(), password))
-                            require(response.accessToken.isNotBlank()) { "Token de acesso vazio" }
-                            token = "Bearer " + response.accessToken
-                            password = ""
-                            error = ""
-                        } catch (e: IllegalArgumentException) {
-                            error = "Informe um endereço HTTPS válido."
-                        } catch (e: Exception) {
-                            error = apiMessage(e)
-                        } finally {
-                            busy = false
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Senha") },
+                    enabled = !busy,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    leadingIcon = { Icon(Icons.Outlined.Lock, null) },
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            showPassword = !showPassword
+                        }) {
+                            Icon(
+                                if (showPassword) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                if (showPassword) "Ocultar senha" else "Mostrar senha"
+                            )
+                        }
+                    },
+                    singleLine = true,
+                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                TextButton(enabled = !busy, onClick = {
+                    recoveryNotice = !recoveryNotice
+                }) { Text("Esqueci minha senha", color = BarberGold) }
+                if (recoveryNotice) Text("Recuperação indisponível. Contate o administrador.")
+                TextButton(enabled = !busy, onClick = {
+                    showSettings = !showSettings
+                }) { Text("API HTTPS", color = BarberGold) }
+                if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
+                Button(
+                    enabled = !busy && validLoginInput(email, password, url),
+                    colors = ButtonDefaults.buttonColors(containerColor = BarberGold, contentColor = BarberOnGold),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        busy = true
+                        scope.launch {
+                            try {
+                                val client = AgendaApiFactory.create(url)
+                                val response = client.login(LoginRequest(email.trim(), password))
+                                require(response.accessToken.isNotBlank()) { "Token de acesso vazio" }
+                                token = "Bearer " + response.accessToken
+                                password = ""
+                                error = ""
+                            } catch (e: IllegalArgumentException) {
+                                error = "Informe um endereço HTTPS válido."
+                            } catch (e: Exception) {
+                                error = apiMessage(e)
+                            } finally {
+                                busy = false
+                            }
                         }
                     }
-                }
-            ) { Text(if (busy) "Conectando..." else "Entrar") }
-            Text("Login e senha não são salvos no dispositivo. A API precisa estar publicada.")
-        }
+                ) { Text(if (busy) "Conectando..." else "Entrar") }
+                Text("Login e senha não são salvos no dispositivo. A API precisa estar publicada.")
+            }
         }
         return
     }

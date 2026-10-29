@@ -60,7 +60,6 @@ import com.agendabarber.app.ui.theme.BarberGold
 import com.agendabarber.app.ui.theme.BarberOnGold
 import com.agendabarber.app.ui.theme.BarberOutline
 import com.agendabarber.app.ui.theme.BarberSurface
-import com.agendabarber.app.ui.theme.BarberSurfaceRaised
 import com.agendabarber.app.ui.theme.BarberTextPrimary
 import com.agendabarber.app.ui.theme.BarberTextSecondary
 import java.time.DayOfWeek

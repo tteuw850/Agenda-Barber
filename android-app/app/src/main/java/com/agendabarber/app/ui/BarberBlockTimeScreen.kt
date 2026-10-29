@@ -13,8 +13,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -160,7 +160,9 @@ internal fun BarberBlockTimeScreen(api: AgendaApi, token: String, onBack: () -> 
         )
         if (mode == BlockMode.RECURRING) {
             Text(
-                "Repetição semanal: ${runCatching { LocalDate.parse(date).dayOfWeek.getDisplayName(TextStyle.FULL, Locale.forLanguageTag("pt-BR")) }.getOrDefault("-")}",
+                "Repetição semanal: ${runCatching {
+                    LocalDate.parse(date).dayOfWeek.getDisplayName(TextStyle.FULL, Locale.forLanguageTag("pt-BR"))
+                }.getOrDefault("-")}",
                 color = BarberTextSecondary,
                 style = MaterialTheme.typography.bodySmall
             )
