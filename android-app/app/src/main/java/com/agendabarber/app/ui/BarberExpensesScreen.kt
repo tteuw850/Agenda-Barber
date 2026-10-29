@@ -89,6 +89,7 @@ internal fun BarberExpensesScreen(api: AgendaApi, token: String, onBack: () -> U
             modifier = Modifier.fillMaxWidth(),
             onClick = {
                 editing = null
+                error = ""
                 showForm = true
             }
         ) { Text("+ Nova despesa") }
@@ -106,6 +107,7 @@ internal fun BarberExpensesScreen(api: AgendaApi, token: String, onBack: () -> U
                 Row {
                     TextButton(onClick = {
                         editing = expense
+                        error = ""
                         showForm = true
                     }) {
                         Text("Editar", color = BarberGold)
@@ -120,6 +122,7 @@ internal fun BarberExpensesScreen(api: AgendaApi, token: String, onBack: () -> U
         ExpenseEditorDialog(
             source = editing,
             busy = busy,
+            error = error,
             onDismiss = { if (!busy) showForm = false },
             onSave = { input, key ->
                 busy = true
@@ -180,6 +183,7 @@ internal fun BarberExpensesScreen(api: AgendaApi, token: String, onBack: () -> U
 private fun ExpenseEditorDialog(
     source: ExpenseView?,
     busy: Boolean,
+    error: String,
     onDismiss: () -> Unit,
     onSave: (ExpenseInput, String) -> Unit
 ) {
@@ -239,6 +243,9 @@ private fun ExpenseEditorDialog(
                     enabled = !busy
                 )
                 if (!valid) Text("Informe data válida, descrição, categoria e valor positivo.")
+                if (error.isNotBlank()) {
+                    Text(error, color = androidx.compose.material3.MaterialTheme.colorScheme.error)
+                }
             }
         },
         confirmButton = {
