@@ -38,7 +38,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -66,7 +65,6 @@ import androidx.room.Room
 import com.agendabarber.app.cache.AgendaCacheDatabase
 import com.agendabarber.app.cache.AgendaRepository
 import com.agendabarber.app.network.AgendaApi
-import com.agendabarber.app.network.ClientView
 import com.agendabarber.app.network.ServiceView
 import com.agendabarber.app.servicecatalog.formatBrl
 import com.agendabarber.app.ui.theme.BarberBackground
@@ -215,7 +213,7 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
                 }
             }
             composable(BarberRoute.CLIENTS) {
-                BarberClientsScreen(api, token) {
+                BarberClientsCatalogScreen(api, token, revision) {
                     navigation.navigate(BarberRoute.NEW_CLIENT)
                 }
             }
@@ -225,6 +223,7 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
                     token = token,
                     onBack = { navigation.popBackStack() },
                     onCreated = { created ->
+                        revision++
                         navigation.previousBackStackEntry?.savedStateHandle
                             ?.set("f0207ClientId", created.id)
                         navigation.previousBackStackEntry?.savedStateHandle
@@ -312,62 +311,6 @@ private fun BackHeader(title: String, onBack: () -> Unit) {
     ) {
         TextButton(onClick = onBack) { Text("‹ Voltar") }
         Text(title, style = MaterialTheme.typography.titleMedium)
-    }
-}
-
-@Composable
-private fun BarberClientsScreen(api: AgendaApi, token: String, onNewClient: () -> Unit) {
-    var query by remember { mutableStateOf("") }
-    var clients by remember { mutableStateOf(emptyList<ClientView>()) }
-    var loading by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf("") }
-    LaunchedEffect(token, query) {
-        loading = true
-        try {
-            clients = api.clients(token, query)
-            error = ""
-        } catch (failure: Exception) {
-            clients = emptyList()
-            error = apiMessage(failure)
-        } finally {
-            loading = false
-        }
-    }
-    Column(
-        Modifier.fillMaxSize().padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Clientes", style = MaterialTheme.typography.headlineSmall)
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = onNewClient) { Text("+ Novo") }
-        }
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            label = { Text("Buscar clientes") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        if (loading) CircularProgressIndicator()
-        if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
-        if (!loading && error.isBlank() && clients.isEmpty()) EmptyState("Nenhum cliente encontrado.")
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(clients, key = { it.id }) { client ->
-                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Avatar(client.name)
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(client.name, fontWeight = FontWeight.Medium)
-                            Text(client.phone ?: "Telefone não informado", color = BarberTextSecondary)
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
