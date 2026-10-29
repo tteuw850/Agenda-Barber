@@ -9,7 +9,11 @@ class BlockTimeValidationTest {
     @Test
     fun singleBlockConvertsBrazilLocalTimeToUtc() {
         val payload = oneTimeBlockPayload(
-            "2026-10-29", "12:00", "13:00", "Almoço", "Retorno às 13h"
+            date = "2026-10-29",
+            start = "12:00",
+            end = "13:00",
+            reason = "Almoço",
+            notes = "Retorno às 13h"
         )
         assertEquals("2026-10-29T15:00:00Z", payload.startsAt)
         assertEquals("2026-10-29T16:00:00Z", payload.endsAt)
@@ -19,7 +23,12 @@ class BlockTimeValidationTest {
     @Test
     fun weeklyBlockUsesDateWeekdayAndBounds() {
         val payload = recurringBlockPayload(
-            "2026-10-30", "12:00", "13:00", "2026-11-27", "Folga", ""
+            date = "2026-10-30",
+            start = "12:00",
+            end = "13:00",
+            validUntil = "2026-11-27",
+            reason = "Folga",
+            notes = ""
         )
         assertEquals(5, payload.weekday)
         assertEquals("2026-10-30", payload.validFrom)
@@ -29,28 +38,58 @@ class BlockTimeValidationTest {
 
     @Test
     fun rejectsInvalidHoursAndIntervals() {
-        assertNotNull(validateBlockFields(BlockMode.SINGLE, "2026-10-29", "13:00", "12:00", ""))
-        assertNotNull(validateBlockFields(BlockMode.SINGLE, "2026-10-29", "12:00", "12:00", ""))
-        assertNotNull(validateBlockFields(BlockMode.SINGLE, "2026-10-29", "25:00", "26:00", ""))
-        assertNotNull(validateBlockFields(BlockMode.SINGLE, "2026-02-30", "12:00", "13:00", ""))
+        val invalidIntervals = listOf(
+            "13:00" to "12:00",
+            "12:00" to "12:00",
+            "25:00" to "26:00"
+        )
+        invalidIntervals.forEach { (start, end) ->
+            assertNotNull(
+                validateBlockFields(
+                    mode = BlockMode.SINGLE,
+                    date = "2026-10-29",
+                    start = start,
+                    end = end,
+                    validUntil = ""
+                )
+            )
+        }
+        assertNotNull(
+            validateBlockFields(
+                mode = BlockMode.SINGLE,
+                date = "2026-02-30",
+                start = "12:00",
+                end = "13:00",
+                validUntil = ""
+            )
+        )
     }
 
     @Test
     fun checksRecurringPeriodAndAcceptsValidDateRange() {
-        assertNotNull(
-            validateBlockFields(
-                BlockMode.RECURRING, "2026-10-29", "12:00", "13:00", "2026-10-28"
-            )
+        val before = validateBlockFields(
+            mode = BlockMode.RECURRING,
+            date = "2026-10-29",
+            start = "12:00",
+            end = "13:00",
+            validUntil = "2026-10-28"
         )
-        assertNotNull(
-            validateBlockFields(
-                BlockMode.RECURRING, "2026-10-29", "12:00", "13:00", "2027-05-01"
-            )
+        val tooLong = validateBlockFields(
+            mode = BlockMode.RECURRING,
+            date = "2026-10-29",
+            start = "12:00",
+            end = "13:00",
+            validUntil = "2027-05-01"
         )
-        assertNull(
-            validateBlockFields(
-                BlockMode.RECURRING, "2026-10-29", "12:00", "13:00", "2026-11-29"
-            )
+        val valid = validateBlockFields(
+            mode = BlockMode.RECURRING,
+            date = "2026-10-29",
+            start = "12:00",
+            end = "13:00",
+            validUntil = "2026-11-29"
         )
+        assertNotNull(before)
+        assertNotNull(tooLong)
+        assertNull(valid)
     }
 }
