@@ -1,0 +1,35 @@
+name: Security - source guardrails and inventory
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-guardrails:
+    name: Security - secret patterns and dependency inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Reject high-confidence committed secrets and unsafe CD triggers
+        run: python3 scripts/ci/security_checks.py
+      - name: List direct dependencies (inventory, not CVE audit)
+        run: python3 scripts/ci/dependency_inventory.py
+      - name: Attach dependency inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: direct-dependency-inventory
+          path: reports/dependency-inventory.txt
+          retention-days: 7
+          if-no-files-found: error
