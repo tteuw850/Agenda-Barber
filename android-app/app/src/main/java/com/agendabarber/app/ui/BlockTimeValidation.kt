@@ -56,7 +56,12 @@ internal fun oneTimeBlockPayload(
     val day = LocalDate.parse(date)
     val from = LocalDateTime.of(day, LocalTime.parse(start)).atZone(barberScheduleZone).toInstant()
     val to = LocalDateTime.of(day, LocalTime.parse(end)).atZone(barberScheduleZone).toInstant()
-    return SingleBlockInput(from.toString(), to.toString(), reason.trim().ifEmpty { null }, notes.trim().ifEmpty { null })
+    return SingleBlockInput(
+        startsAt = from.toString(),
+        endsAt = to.toString(),
+        reason = reason.trim().ifEmpty { null },
+        notes = notes.trim().ifEmpty { null }
+    )
 }
 
 internal fun recurringBlockPayload(
