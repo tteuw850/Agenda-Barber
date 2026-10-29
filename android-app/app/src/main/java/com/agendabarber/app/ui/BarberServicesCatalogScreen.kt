@@ -66,8 +66,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 internal enum class BarberServiceIcon(val label: String) {
-    SCISSORS("Corte"), BEARD("Barba"), COMBO("Corte + Barba"),
-    EYEBROW("Sobrancelha"), CHILD("Infantil"), OTHER("Outro")
+    SCISSORS("Corte"),
+    BEARD("Barba"),
+    COMBO("Corte + Barba"),
+    EYEBROW("Sobrancelha"),
+    CHILD("Infantil"),
+    OTHER("Outro")
 }
 
 internal fun servicePriceInput(raw: String): BigDecimal? {
@@ -77,8 +81,10 @@ internal fun servicePriceInput(raw: String): BigDecimal? {
 
 internal fun serviceFormValid(name: String, duration: String, price: String): Boolean {
     val minutes = duration.toIntOrNull() ?: return false
-    return name.trim().isNotEmpty() && name.trim().length <= 150 &&
-        minutes in 1..480 && servicePriceInput(price) != null
+    return name.trim().isNotEmpty() &&
+        name.trim().length <= 150 &&
+        minutes in 1..480 &&
+        servicePriceInput(price) != null
 }
 
 private fun iconFor(key: String): ImageVector = when (key) {
@@ -135,7 +141,8 @@ internal fun BarberServicesCatalogScreen(api: AgendaApi, token: String, onBack: 
                     editorOpen = true
                 },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = BarberGold, contentColor = BarberOnGold
+                    containerColor = BarberGold,
+                    contentColor = BarberOnGold
                 )
             ) {
                 Icon(Icons.Outlined.Add, contentDescription = null)
@@ -206,7 +213,9 @@ internal fun BarberServicesCatalogScreen(api: AgendaApi, token: String, onBack: 
                                             scope.launch {
                                                 try {
                                                     api.setServiceActive(
-                                                        token, service.id, mapOf("active" to true)
+                                                        token,
+                                                        service.id,
+                                                        mapOf("active" to true)
                                                     )
                                                     revision++
                                                 } catch (failure: Exception) {
@@ -239,8 +248,11 @@ internal fun BarberServicesCatalogScreen(api: AgendaApi, token: String, onBack: 
                     scope.launch {
                         try {
                             val current = editing
-                            if (current == null) api.createService(token, request)
-                            else api.updateService(token, current.id, request)
+                            if (current == null) {
+                                api.createService(token, request)
+                            } else {
+                                api.updateService(token, current.id, request)
+                            }
                             editorOpen = false
                             revision++
                         } catch (failure: Exception) {
@@ -398,7 +410,8 @@ private fun BarberServiceEditor(
             Button(
                 enabled = !saving && serviceFormValid(name, duration, price),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = BarberGold, contentColor = BarberOnGold
+                    containerColor = BarberGold,
+                    contentColor = BarberOnGold
                 ),
                 onClick = {
                     val amount = servicePriceInput(price) ?: return@Button
