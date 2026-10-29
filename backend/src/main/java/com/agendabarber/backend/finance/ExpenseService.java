@@ -2,7 +2,6 @@ package com.agendabarber.backend.finance;
 
 import com.agendabarber.backend.finance.ExpenseDtos.ExpenseInput;
 import com.agendabarber.backend.finance.ExpenseDtos.ExpenseView;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
