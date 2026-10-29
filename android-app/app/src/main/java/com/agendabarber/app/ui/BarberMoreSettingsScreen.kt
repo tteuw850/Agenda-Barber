@@ -27,18 +27,13 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Logout
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.PersonOutline
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -48,14 +43,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.agendabarber.app.ui.theme.BarberBackground
 import com.agendabarber.app.ui.theme.BarberCancelAction
 import com.agendabarber.app.ui.theme.BarberGold
-import com.agendabarber.app.ui.theme.BarberOnGold
 import com.agendabarber.app.ui.theme.BarberOutline
 import com.agendabarber.app.ui.theme.BarberSurface
 import com.agendabarber.app.ui.theme.BarberSurfaceRaised
@@ -177,11 +170,7 @@ internal fun BarberMoreSettingsScreen(
                 Switch(
                     checked = false,
                     onCheckedChange = null,
-                    enabled = false,
-                    colors = SwitchDefaults.colors(
-                        disabledCheckedTrackColor = BarberGold,
-                        disabledUncheckedThumbColor = BarberGold
-                    )
+                    enabled = false
                 )
             }
         )
@@ -256,7 +245,7 @@ internal fun BarberMoreSettingsScreen(
         AlertDialog(
             onDismissRequest = { confirmLogout = false },
             title = { Text("Sair da conta?") },
-            text = { Text("A sessão será encerrada e o cache de leitura da Agenda será limpo.") },
+            text = { Text("A sessão será encerrada. O aplicativo tentará limpar o cache de leitura da Agenda.") },
             confirmButton = {
                 TextButton(
                     onClick = {
