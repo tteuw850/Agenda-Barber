@@ -345,7 +345,14 @@ internal fun BarberAppointmentDetails(
                             " · " + current.durationMinutes + " min"
                     )
                     DetailRow(Icons.Outlined.ContentCut, "Serviço", current.serviceName)
-                    DetailRow(Icons.Outlined.AttachMoney, "Valor", formatBrl(current.price))
+                    DetailRow(Icons.Outlined.AttachMoney, "Preço agendado", formatBrl(current.price))
+                    if (current.status == "COMPLETED") {
+                        DetailRow(
+                            Icons.Outlined.AttachMoney,
+                            "Valor recebido",
+                            current.receivedAmount?.let { formatBrl(it) } ?: "Não informado (histórico)"
+                        )
+                    }
                     DetailRow(
                         Icons.Outlined.Notes,
                         "Observações",
