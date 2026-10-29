@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -53,13 +52,12 @@ import retrofit2.HttpException
 
 private data class DayEditor(val weekday: Int, val data: WorkingHoursView?)
 
-private fun workingHoursApiError(failure: Exception): String =
-    when ((failure as? HttpException)?.code()) {
-        409 -> "Conflito: há agendamentos que impedem essa alteração."
-        400 -> "Verifique os horários enviados."
-        401, 403 -> "Sessão inválida ou sem permissão."
-        else -> "Não foi possível confirmar a operação. Verifique a conexão."
-    }
+private fun workingHoursApiError(failure: Exception): String = when ((failure as? HttpException)?.code()) {
+    409 -> "Conflito: há agendamentos que impedem essa alteração."
+    400 -> "Verifique os horários enviados."
+    401, 403 -> "Sessão inválida ou sem permissão."
+    else -> "Não foi possível confirmar a operação. Verifique a conexão."
+}
 
 @Composable
 internal fun BarberWorkingHoursScreen(api: AgendaApi, token: String, onBack: () -> Unit) {
