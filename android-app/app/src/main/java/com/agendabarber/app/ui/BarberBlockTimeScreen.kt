@@ -12,9 +12,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -55,6 +55,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
@@ -135,7 +137,7 @@ internal fun BarberBlockTimeScreen(api: AgendaApi, token: String, onBack: () -> 
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Voltar")
+                Icon(Icons.Outlined.Close, contentDescription = "Fechar bloqueio")
             }
             Text("Bloquear Horário", style = MaterialTheme.typography.titleLarge)
         }
@@ -158,7 +160,7 @@ internal fun BarberBlockTimeScreen(api: AgendaApi, token: String, onBack: () -> 
         )
         if (mode == BlockMode.RECURRING) {
             Text(
-                "Repetição semanal: ${runCatching { LocalDate.parse(date).dayOfWeek.name }.getOrDefault("-")}",
+                "Repetição semanal: ${runCatching { LocalDate.parse(date).dayOfWeek.getDisplayName(TextStyle.FULL, Locale.forLanguageTag("pt-BR")) }.getOrDefault("-")}",
                 color = BarberTextSecondary,
                 style = MaterialTheme.typography.bodySmall
             )
