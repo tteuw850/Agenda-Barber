@@ -118,12 +118,7 @@ data class CreateAppointment(
 
 data class CompleteAppointment(val receivedAmount: BigDecimal)
 
-data class ExpenseInput(
-    val occurredOn: String,
-    val description: String,
-    val amount: BigDecimal,
-    val category: String
-)
+data class ExpenseInput(val occurredOn: String, val description: String, val amount: BigDecimal, val category: String)
 
 data class ExpenseView(
     val id: String,

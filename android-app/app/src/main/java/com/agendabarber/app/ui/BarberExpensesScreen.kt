@@ -104,7 +104,10 @@ internal fun BarberExpensesScreen(api: AgendaApi, token: String, onBack: () -> U
                 Text(expense.description)
                 Text("${expense.occurredOn} • ${expense.category} • ${formatBrl(expense.amount)}")
                 Row {
-                    TextButton(onClick = { editing = expense; showForm = true }) {
+                    TextButton(onClick = {
+                        editing = expense
+                        showForm = true
+                    }) {
                         Text("Editar", color = BarberGold)
                     }
                     TextButton(onClick = { pendingDelete = expense }) { Text("Excluir") }
@@ -180,15 +183,20 @@ private fun ExpenseEditorDialog(
     onDismiss: () -> Unit,
     onSave: (ExpenseInput, String) -> Unit
 ) {
-    var date by remember(source?.id) { mutableStateOf(source?.occurredOn ?: LocalDate.now(barberScheduleZone).toString()) }
+    var date by remember(source?.id) {
+        mutableStateOf(source?.occurredOn ?: LocalDate.now(barberScheduleZone).toString())
+    }
     var description by remember(source?.id) { mutableStateOf(source?.description ?: "") }
     var category by remember(source?.id) { mutableStateOf(source?.category ?: "") }
     var amountText by remember(source?.id) { mutableStateOf(source?.amount?.toPlainString() ?: "") }
     var key by remember(source?.id) { mutableStateOf(UUID.randomUUID().toString()) }
     val amount = parseMoney(amountText, positiveOnly = true)
     val valid = runCatching { LocalDate.parse(date) }.isSuccess &&
-        description.isNotBlank() && description.length <= 255 &&
-        category.isNotBlank() && category.length <= 80 && amount != null
+        description.isNotBlank() &&
+        description.length <= 255 &&
+        category.isNotBlank() &&
+        category.length <= 80 &&
+        amount != null
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
         title = { Text(if (source == null) "Nova despesa" else "Editar despesa") },
@@ -196,25 +204,37 @@ private fun ExpenseEditorDialog(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = date,
-                    onValueChange = { date = it.take(10); key = UUID.randomUUID().toString() },
+                    onValueChange = {
+                        date = it.take(10)
+                        key = UUID.randomUUID().toString()
+                    },
                     label = { Text("Data (AAAA-MM-DD)") },
                     enabled = !busy
                 )
                 OutlinedTextField(
                     value = description,
-                    onValueChange = { description = it.take(255); key = UUID.randomUUID().toString() },
+                    onValueChange = {
+                        description = it.take(255)
+                        key = UUID.randomUUID().toString()
+                    },
                     label = { Text("Descrição") },
                     enabled = !busy
                 )
                 OutlinedTextField(
                     value = category,
-                    onValueChange = { category = it.take(80); key = UUID.randomUUID().toString() },
+                    onValueChange = {
+                        category = it.take(80)
+                        key = UUID.randomUUID().toString()
+                    },
                     label = { Text("Categoria") },
                     enabled = !busy
                 )
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { amountText = it.take(14); key = UUID.randomUUID().toString() },
+                    onValueChange = {
+                        amountText = it.take(14)
+                        key = UUID.randomUUID().toString()
+                    },
                     label = { Text("Valor (R$)") },
                     enabled = !busy
                 )

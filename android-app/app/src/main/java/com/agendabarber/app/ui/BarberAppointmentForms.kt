@@ -64,8 +64,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.agendabarber.app.network.AgendaApi
 import com.agendabarber.app.network.AppointmentView
-import com.agendabarber.app.network.CompleteAppointment
 import com.agendabarber.app.network.ClientView
+import com.agendabarber.app.network.CompleteAppointment
 import com.agendabarber.app.network.CreateAppointment
 import com.agendabarber.app.network.HistoryItem
 import com.agendabarber.app.network.ServiceView
