@@ -782,14 +782,14 @@ class AuthSecurityIntegrationTests {
         assertEquals(200, request("POST", path + "/start", null, a.jwt()).statusCode());
         assertEquals(200, request("POST", path + "/start", null, a.jwt()).statusCode());
         assertEquals(409, request("PATCH", path, "{\"notes\":\"too late\"}", a.jwt()).statusCode());
-        assertEquals(200, request("POST", path + "/complete", "{\\"receivedAmount\\":62.50}", a.jwt()).statusCode());
+        assertEquals(200, request("POST", path + "/complete", "{\"receivedAmount\":62.50}", a.jwt()).statusCode());
         JsonNode completed = mapper.readTree(get(path, a.jwt()).body());
         assertEquals("COMPLETED", completed.get("status").asText());
         assertFalse(completed.get("completedAt").isNull());
         assertEquals(0, completed.get("price").decimalValue().compareTo(new BigDecimal("55.50")));
         assertEquals(0, completed.get("receivedAmount").decimalValue()
                 .compareTo(new BigDecimal("62.50")));
-        assertEquals(200, request("POST", path + "/complete", "{\\"receivedAmount\\":62.50}", a.jwt()).statusCode());
+        assertEquals(200, request("POST", path + "/complete", "{\"receivedAmount\":62.50}", a.jwt()).statusCode());
         assertEquals(409, request("POST", path + "/cancel", null, a.jwt()).statusCode());
         JsonNode history = mapper.readTree(get(path + "/history", a.jwt()).body());
         assertEquals(4, history.size()); // create, edit, start, complete (no duplicate events)
@@ -827,7 +827,7 @@ class AuthSecurityIntegrationTests {
         assertEquals(1, mapper.readTree(get(path + "&status=CANCELLED",
                 a.jwt()).body()).size());
         assertEquals(409, request("POST", "/api/v1/appointments/" + id + "/complete",
-                "{\\"receivedAmount\\":62.50}", a.jwt()).statusCode());
+                "{\"receivedAmount\":62.50}", a.jwt()).statusCode());
     }
 
     @Test
