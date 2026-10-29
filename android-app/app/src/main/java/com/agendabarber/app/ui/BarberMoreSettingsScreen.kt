@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Logout
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.PersonOutline
+import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -103,6 +104,7 @@ internal fun BarberMoreSettingsScreen(
     onWorkingHours: () -> Unit,
     onServices: () -> Unit,
     onBlocks: () -> Unit,
+    onExpenses: () -> Unit,
     onLogout: () -> Unit
 ) {
     var detail by rememberSaveable { mutableStateOf<MoreInfo?>(null) }
@@ -229,6 +231,11 @@ internal fun BarberMoreSettingsScreen(
             title = "Bloquear horário",
             icon = Icons.Outlined.Build,
             onClick = onBlocks
+        )
+        MoreMenuItem(
+            title = "Despesas",
+            icon = Icons.Outlined.ReceiptLong,
+            onClick = onExpenses
         )
 
         OutlinedButton(

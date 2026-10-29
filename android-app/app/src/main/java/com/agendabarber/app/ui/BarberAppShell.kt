@@ -65,6 +65,7 @@ internal object BarberRoute {
     const val SERVICES = "services"
     const val BLOCK_TIME = "block-time"
     const val WORKING_HOURS = "working-hours"
+    const val EXPENSES = "expenses"
     const val DETAILS = "appointment/{id}"
     val bottomDestinations = setOf(AGENDA, CLIENTS, STATS, MORE)
 }
@@ -213,6 +214,9 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
             composable(BarberRoute.BLOCK_TIME) {
                 BarberBlockTimeScreen(api, token) { navigation.popBackStack() }
             }
+            composable(BarberRoute.EXPENSES) {
+                BarberExpensesScreen(api, token) { navigation.popBackStack() }
+            }
             composable(BarberRoute.WORKING_HOURS) {
                 BarberWorkingHoursScreen(api, token) { navigation.popBackStack() }
             }
@@ -226,6 +230,7 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
                     onWorkingHours = { navigation.navigate(BarberRoute.WORKING_HOURS) },
                     onServices = { navigation.navigate(BarberRoute.SERVICES) },
                     onBlocks = { navigation.navigate(BarberRoute.BLOCK_TIME) },
+                    onExpenses = { navigation.navigate(BarberRoute.EXPENSES) },
                     onLogout = {
                         scope.launch {
                             try {

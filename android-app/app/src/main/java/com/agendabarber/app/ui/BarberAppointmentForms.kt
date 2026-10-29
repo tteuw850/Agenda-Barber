@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import com.agendabarber.app.network.AgendaApi
 import com.agendabarber.app.network.AppointmentView
 import com.agendabarber.app.network.ClientView
+import com.agendabarber.app.network.CompleteAppointment
 import com.agendabarber.app.network.CreateAppointment
 import com.agendabarber.app.network.HistoryItem
 import com.agendabarber.app.network.ServiceView
@@ -115,6 +116,8 @@ internal fun BarberAppointmentDetails(
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var confirmCancel by remember { mutableStateOf(false) }
+    var confirmComplete by remember { mutableStateOf(false) }
+    var receivedInput by remember(id) { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -129,6 +132,58 @@ internal fun BarberAppointmentDetails(
     }
     fun refreshAfterAction() {
         revision++
+    }
+    if (confirmComplete) {
+        val amount = parseMoney(receivedInput)
+        AlertDialog(
+            onDismissRequest = { if (!busy) confirmComplete = false },
+            title = { Text("Concluir atendimento") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Preço agendado: " + formatBrl(appointment?.price ?: BigDecimal.ZERO))
+                    Text("Informe o valor realmente recebido. Ele será registrado no financeiro.")
+                    OutlinedTextField(
+                        value = receivedInput,
+                        onValueChange = { receivedInput = it.take(14) },
+                        label = { Text("Valor recebido (R$)") },
+                        placeholder = { Text("0,00") },
+                        singleLine = true,
+                        enabled = !busy
+                    )
+                    if (amount == null) {
+                        Text("Informe um valor válido, com até duas casas decimais.")
+                    }
+                    if (error.isNotBlank()) {
+                        Text(error, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !busy && amount != null,
+                    onClick = {
+                        val confirmed = amount ?: return@TextButton
+                        busy = true
+                        scope.launch {
+                            try {
+                                appointment = api.complete(token, id, CompleteAppointment(confirmed))
+                                confirmComplete = false
+                                refreshAfterAction()
+                            } catch (failure: Exception) {
+                                error = apiMessage(failure)
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    }
+                ) { Text(if (busy) "Salvando..." else "Confirmar recebimento", color = BarberGold) }
+            },
+            dismissButton = {
+                TextButton(enabled = !busy, onClick = { confirmComplete = false }) {
+                    Text("Voltar")
+                }
+            }
+        )
     }
     if (confirmCancel) {
         AlertDialog(
@@ -172,19 +227,21 @@ internal fun BarberAppointmentDetails(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = BarberStartAction),
                         onClick = {
-                            busy = true
-                            scope.launch {
-                                try {
-                                    appointment = if (current.status == "SCHEDULED") {
-                                        api.start(token, id)
-                                    } else {
-                                        api.complete(token, id)
+                            if (current.status == "IN_PROGRESS") {
+                                receivedInput = current.price.toPlainString()
+                                error = ""
+                                confirmComplete = true
+                            } else {
+                                busy = true
+                                scope.launch {
+                                    try {
+                                        appointment = api.start(token, id)
+                                        refreshAfterAction()
+                                    } catch (failure: Exception) {
+                                        error = apiMessage(failure)
+                                    } finally {
+                                        busy = false
                                     }
-                                    refreshAfterAction()
-                                } catch (failure: Exception) {
-                                    error = apiMessage(failure)
-                                } finally {
-                                    busy = false
                                 }
                             }
                         }
@@ -292,7 +349,14 @@ internal fun BarberAppointmentDetails(
                             " · " + current.durationMinutes + " min"
                     )
                     DetailRow(Icons.Outlined.ContentCut, "Serviço", current.serviceName)
-                    DetailRow(Icons.Outlined.AttachMoney, "Valor", formatBrl(current.price))
+                    DetailRow(Icons.Outlined.AttachMoney, "Preço agendado", formatBrl(current.price))
+                    if (current.status == "COMPLETED") {
+                        DetailRow(
+                            Icons.Outlined.AttachMoney,
+                            "Valor recebido",
+                            current.receivedAmount?.let { formatBrl(it) } ?: "Não informado (histórico)"
+                        )
+                    }
                     DetailRow(
                         Icons.Outlined.Notes,
                         "Observações",

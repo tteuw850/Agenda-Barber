@@ -39,7 +39,7 @@ public class AppointmentService {
     private static final String SELECT = "SELECT a.id,a.client_id,c.name AS client_name,"
             + "c.phone AS client_phone,a.service_id,a.service_name_snapshot,a.price_snapshot,"
             + "a.starts_at,a.ends_at,a.status::text AS state,a.notes,a.completed_at,"
-            + "a.version,a.created_at,a.updated_at FROM appointments a "
+            + "a.version,a.created_at,a.updated_at,a.received_amount FROM appointments a "
             + "JOIN clients c ON c.id=a.client_id AND c.barber_id=a.barber_id ";
     private static final RowMapper<AppointmentView> MAPPER = (rs, index) -> map(rs);
 
@@ -155,8 +155,45 @@ public class AppointmentService {
         return get(barberId, id);
     }
 
+    /**
+     * Actual revenue is established only by an explicit amount at completion.
+     * Retries of the same amount are safe; changing a completed receipt is a conflict.
+     */
+    @Transactional
+    public AppointmentView complete(UUID barberId, UUID id, BigDecimal amount) {
+        BigDecimal received = validateReceivedAmount(amount);
+        jdbc.queryForObject("SELECT id FROM barbers WHERE id=? FOR UPDATE", UUID.class, barberId);
+        AppointmentView current = get(barberId, id);
+        if ("COMPLETED".equals(current.status())) {
+            if (current.receivedAmount() != null
+                    && current.receivedAmount().compareTo(received) == 0) {
+                return current;
+            }
+            throw new AppointmentConflictException();
+        }
+        if (!"IN_PROGRESS".equals(current.status())) {
+            throw new AppointmentConflictException();
+        }
+        jdbc.update("UPDATE appointments SET status='COMPLETED', completed_at=now(),"
+                        + "received_amount=?,version=version+1 WHERE barber_id=? AND id=?",
+                received, barberId, id);
+        event(barberId, id, "COMPLETED", current.status(), "COMPLETED");
+        return get(barberId, id);
+    }
+
+    public static BigDecimal validateReceivedAmount(BigDecimal amount) {
+        if (amount == null || amount.signum() < 0 || amount.scale() > 2
+                || amount.precision() - amount.scale() > 10) {
+            throw new InvalidAppointmentException();
+        }
+        return amount.setScale(2);
+    }
+
     @Transactional
     public AppointmentView transition(UUID barberId, UUID id, String next) {
+        if ("COMPLETED".equals(next)) {
+            throw new InvalidAppointmentException();
+        }
         // The barber lock also serializes state updates with rescheduling.
         jdbc.queryForObject("SELECT id FROM barbers WHERE id=? FOR UPDATE", UUID.class, barberId);
         AppointmentView current = get(barberId, id);
@@ -211,7 +248,7 @@ public class AppointmentService {
                 rs.getString("state"), rs.getString("notes"),
                 completed == null ? null : completed.toInstant(),
                 rs.getLong("version"), rs.getTimestamp("created_at").toInstant(),
-                rs.getTimestamp("updated_at").toInstant());
+                rs.getTimestamp("updated_at").toInstant(), rs.getBigDecimal("received_amount"));
     }
 
     private static UUID asUuid(Object value) {
