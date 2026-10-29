@@ -220,7 +220,9 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
                 BarberStatisticsScreen()
             }
             composable(BarberRoute.MORE) {
+                val lastCacheWriteAt by repository.lastCacheWriteAt.collectAsState()
                 BarberMoreSettingsScreen(
+                    lastCacheWriteAt = lastCacheWriteAt,
                     onWorkingHours = { navigation.navigate(BarberRoute.WORKING_HOURS) },
                     onServices = { navigation.navigate(BarberRoute.SERVICES) },
                     onBlocks = { navigation.navigate(BarberRoute.BLOCK_TIME) },
