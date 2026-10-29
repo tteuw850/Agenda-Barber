@@ -97,7 +97,8 @@ data class AppointmentView(
     val status: String,
     val notes: String?,
     val completedAt: String?,
-    val version: Long
+    val version: Long,
+    val receivedAmount: BigDecimal? = null
 )
 
 data class HistoryItem(
@@ -113,6 +114,23 @@ data class CreateAppointment(
     val startsAt: String,
     val price: BigDecimal?,
     val notes: String?
+)
+
+data class CompleteAppointment(val receivedAmount: BigDecimal)
+
+data class ExpenseInput(
+    val occurredOn: String,
+    val description: String,
+    val amount: BigDecimal,
+    val category: String
+)
+
+data class ExpenseView(
+    val id: String,
+    val occurredOn: String,
+    val description: String,
+    val amount: BigDecimal,
+    val category: String
 )
 
 data class CreateClient(
@@ -159,10 +177,38 @@ interface AgendaApi {
     suspend fun start(@Header("Authorization") bearer: String, @Path("id") id: String): AppointmentView
 
     @POST("api/v1/appointments/{id}/complete")
-    suspend fun complete(@Header("Authorization") bearer: String, @Path("id") id: String): AppointmentView
+    suspend fun complete(
+        @Header("Authorization") bearer: String,
+        @Path("id") id: String,
+        @Body receipt: CompleteAppointment
+    ): AppointmentView
 
     @POST("api/v1/appointments/{id}/cancel")
     suspend fun cancel(@Header("Authorization") bearer: String, @Path("id") id: String): AppointmentView
+
+    @GET("api/v1/expenses")
+    suspend fun expenses(
+        @Header("Authorization") bearer: String,
+        @Query("from") from: String,
+        @Query("to") to: String
+    ): List<ExpenseView>
+
+    @POST("api/v1/expenses")
+    suspend fun createExpense(
+        @Header("Authorization") bearer: String,
+        @Header("Idempotency-Key") key: String,
+        @Body body: ExpenseInput
+    ): ExpenseView
+
+    @PUT("api/v1/expenses/{id}")
+    suspend fun updateExpense(
+        @Header("Authorization") bearer: String,
+        @Path("id") id: String,
+        @Body body: ExpenseInput
+    ): ExpenseView
+
+    @DELETE("api/v1/expenses/{id}")
+    suspend fun deleteExpense(@Header("Authorization") bearer: String, @Path("id") id: String)
 
     @GET("api/v1/clients")
     suspend fun clients(
