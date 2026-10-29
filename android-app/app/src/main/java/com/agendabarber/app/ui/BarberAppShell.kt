@@ -30,7 +30,6 @@ import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -68,7 +67,6 @@ import com.agendabarber.app.cache.AgendaCacheDatabase
 import com.agendabarber.app.cache.AgendaRepository
 import com.agendabarber.app.network.AgendaApi
 import com.agendabarber.app.network.ClientView
-import com.agendabarber.app.network.CreateClient
 import com.agendabarber.app.network.ServiceView
 import com.agendabarber.app.servicecatalog.formatBrl
 import com.agendabarber.app.ui.theme.BarberBackground
@@ -370,53 +368,6 @@ private fun BarberClientsScreen(api: AgendaApi, token: String, onNewClient: () -
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun BarberNewClientScreen(api: AgendaApi, token: String, onBack: () -> Unit, onCreated: (ClientView) -> Unit) {
-    val scope = rememberCoroutineScope()
-    var name by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
-    var loading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf("") }
-    Column(Modifier.fillMaxSize().padding(18.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        BackHeader("Novo Cliente", onBack)
-        Avatar(name)
-        OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
-            label = { Text("Nome completo") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        OutlinedTextField(
-            value = phone,
-            onValueChange = { phone = it },
-            label = { Text("Telefone / WhatsApp (opcional)") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Text(
-            "Foto, aniversário e campos adicionais serão entregues na F02-08.",
-            color = BarberTextSecondary
-        )
-        if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
-        Button(
-            enabled = name.isNotBlank() && !loading,
-            modifier = Modifier.fillMaxWidth(),
-            onClick = {
-                loading = true
-                scope.launch {
-                    try {
-                        val created = api.newClient(token, CreateClient(name.trim(), phone.ifBlank { null }))
-                        onCreated(created)
-                    } catch (failure: Exception) {
-                        error = apiMessage(failure)
-                    } finally {
-                        loading = false
-                    }
-                }
-            }
-        ) { Text(if (loading) "Salvando..." else "Salvar cliente") }
     }
 }
 

@@ -57,7 +57,13 @@ data class CreateAppointment(
     val notes: String?
 )
 
-data class CreateClient(val name: String, val phone: String?)
+data class CreateClient(
+    val name: String,
+    val phone: String?,
+    val email: String? = null,
+    val birthDate: String? = null,
+    val notes: String? = null
+)
 
 interface AgendaApi {
     @POST("api/v1/auth/login")
