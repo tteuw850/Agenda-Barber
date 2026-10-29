@@ -59,8 +59,8 @@ internal fun oneTimeBlockPayload(
     return SingleBlockInput(
         startsAt = from.toString(),
         endsAt = to.toString(),
-        reason = reason.trim().ifEmpty { null },
-        notes = notes.trim().ifEmpty { null }
+        reason = reason.trim().takeIf { it.isNotEmpty() },
+        notes = notes.trim().takeIf { it.isNotEmpty() }
     )
 }
 
@@ -79,7 +79,7 @@ internal fun recurringBlockPayload(
         endsAt = end,
         validFrom = date,
         validUntil = validUntil,
-        reason = reason.trim().ifEmpty { null },
-        notes = notes.trim().ifEmpty { null }
+        reason = reason.trim().takeIf { it.isNotEmpty() },
+        notes = notes.trim().takeIf { it.isNotEmpty() }
     )
 }
