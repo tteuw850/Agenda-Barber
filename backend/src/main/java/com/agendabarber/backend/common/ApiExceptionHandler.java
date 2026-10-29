@@ -128,6 +128,18 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.CONFLICT, "Conflict", "Expense idempotency conflict.");
     }
 
+    @ExceptionHandler(com.agendabarber.backend.reports.ReportService.InvalidReportException.class)
+    ResponseEntity<ProblemDetail> invalidReport(
+            com.agendabarber.backend.reports.ReportService.InvalidReportException ignored) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid request", "Invalid reporting period or limit.");
+    }
+
+    @ExceptionHandler(com.agendabarber.backend.reports.ReportService.ReportNotFoundException.class)
+    ResponseEntity<ProblemDetail> missingReportOwner(
+            com.agendabarber.backend.reports.ReportService.ReportNotFoundException ignored) {
+        return problem(HttpStatus.NOT_FOUND, "Not found", "Barber not found.");
+    }
+
     @ExceptionHandler(AppointmentService.AppointmentNotFoundException.class)
     ResponseEntity<ProblemDetail> missingAppointment(AppointmentService.AppointmentNotFoundException ignored) {
         return problem(HttpStatus.NOT_FOUND, "Not found", "Appointment or selection not found.");
