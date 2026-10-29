@@ -55,6 +55,19 @@ import com.agendabarber.app.ui.theme.BarberSurface
 import com.agendabarber.app.ui.theme.BarberSurfaceRaised
 import com.agendabarber.app.ui.theme.BarberTextPrimary
 import com.agendabarber.app.ui.theme.BarberTextSecondary
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
+internal fun lastCacheWriteCaption(value: Long?): String =
+    if (value == null) {
+        "Nenhuma gravação de cache confirmada nesta sessão."
+    } else {
+        val timestamp = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+            .withZone(ZoneId.of("America/Sao_Paulo"))
+            .format(Instant.ofEpochMilli(value))
+        "Última gravação do cache nesta sessão: $timestamp."
+    }
 
 internal enum class MoreInfo(val title: String, val detail: String) {
     PROFILE(
@@ -65,8 +78,8 @@ internal enum class MoreInfo(val title: String, val detail: String) {
     BACKUP(
         "Backup e sincronização",
         "A Agenda mantém um cache local de leitura com Room para consultas offline. " +
-            "Isso não é um backup completo. O último horário de sincronização " +
-            "não está disponível nesta área. Não foi realizado backup nem sincronização manual."
+            "Isso não é um backup completo. Nenhum backup nem sincronização manual " +
+            "é executado por esta tela."
     ),
     THEME(
         "Tema",
@@ -87,6 +100,7 @@ internal enum class MoreInfo(val title: String, val detail: String) {
 
 @Composable
 internal fun BarberMoreSettingsScreen(
+    lastCacheWriteAt: Long?,
     onWorkingHours: () -> Unit,
     onServices: () -> Unit,
     onBlocks: () -> Unit,
@@ -238,7 +252,15 @@ internal fun BarberMoreSettingsScreen(
         AlertDialog(
             onDismissRequest = { detail = null },
             title = { Text(selected.title) },
-            text = { Text(selected.detail) },
+            text = {
+                Text(
+                    if (selected == MoreInfo.BACKUP) {
+                        selected.detail + "\n" + lastCacheWriteCaption(lastCacheWriteAt)
+                    } else {
+                        selected.detail
+                    }
+                )
+            },
             confirmButton = {
                 TextButton(onClick = { detail = null }) {
                     Text("Entendi", color = BarberGold)
