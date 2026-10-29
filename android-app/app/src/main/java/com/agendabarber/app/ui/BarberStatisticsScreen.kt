@@ -19,7 +19,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material3.Card
+import androidx.compose.material.icons.outlined.AttachMoney
+import androidx.compose.material.icons.outlined.ContentCut
+import androidx.compose.material.icons.outlined.LocalOffer
+import androidx.compose.material.icons.outlined.Closeimport androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -128,14 +132,16 @@ internal fun StatisticsDashboard(
             StatisticsKpi(
                 title = "Faturamento",
                 value = snapshot?.let { formatBrl(it.revenue) } ?: "—",
-                subtitle = if (snapshot == null) "Sem dados" else "No mês",
+                subtitle = if (isDemonstration) "↑ 12% • exemplo" else if (snapshot == null) "Sem dados" else "No mês",
+                icon = Icons.Outlined.AttachMoney,
                 background = StatsRevenueCard,
                 modifier = Modifier.weight(1f)
             )
             StatisticsKpi(
                 title = "Cortes realizados",
                 value = snapshot?.completedCuts?.toString() ?: "—",
-                subtitle = if (snapshot == null) "Sem dados" else "Concluídos",
+                subtitle = if (isDemonstration) "↑ 8% • exemplo" else if (snapshot == null) "Sem dados" else "Concluídos",
+                icon = Icons.Outlined.ContentCut,
                 background = StatsCutsCard,
                 modifier = Modifier.weight(1f)
             )
@@ -144,14 +150,16 @@ internal fun StatisticsDashboard(
             StatisticsKpi(
                 title = "Ticket médio",
                 value = snapshot?.let { formatBrl(it.averageTicket) } ?: "—",
-                subtitle = if (snapshot == null) "Sem dados" else "Por atendimento",
+                subtitle = if (isDemonstration) "↑ 5% • exemplo" else if (snapshot == null) "Sem dados" else "Por atendimento",
+                icon = Icons.Outlined.LocalOffer,
                 background = StatsTicketCard,
                 modifier = Modifier.weight(1f)
             )
             StatisticsKpi(
                 title = "Cancelamentos",
                 value = snapshot?.cancellations?.toString() ?: "—",
-                subtitle = if (snapshot == null) "Sem dados" else "No mês",
+                subtitle = if (isDemonstration) "↓ 2% • exemplo" else if (snapshot == null) "Sem dados" else "No mês",
+                icon = Icons.Outlined.Close,
                 background = StatsCancellationsCard,
                 modifier = Modifier.weight(1f)
             )
@@ -284,6 +292,7 @@ private fun StatisticsKpi(
     title: String,
     value: String,
     subtitle: String,
+    icon: ImageVector,
     background: Color,
     modifier: Modifier = Modifier
 ) {
@@ -296,11 +305,20 @@ private fun StatisticsKpi(
             modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp)
         ) {
-            Text(
-                title,
-                color = StatsTextPrimary,
-                style = MaterialTheme.typography.labelMedium
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    title,
+                    color = StatsTextPrimary,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 2,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(icon, contentDescription = null, tint = StatsTextPrimary)
+            }
             Text(
                 value,
                 color = StatsTextPrimary,
