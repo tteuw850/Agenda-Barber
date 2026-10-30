@@ -45,6 +45,7 @@ import androidx.navigation.navArgument
 import androidx.room.Room
 import com.agendabarber.app.cache.AgendaCacheDatabase
 import com.agendabarber.app.cache.AgendaRepository
+import com.agendabarber.app.cache.StatisticsRepository
 import com.agendabarber.app.network.AgendaApi
 import com.agendabarber.app.ui.theme.BarberBackground
 import com.agendabarber.app.ui.theme.BarberGold
@@ -82,6 +83,12 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
     }
     val repository = remember(api, database) {
         AgendaRepository(api, database.agendaCacheDao())
+    }
+    val statisticsRepository = remember(api, database) {
+        StatisticsRepository(
+            fetchDashboard = { bearer, from, to -> api.reportingDashboard(bearer, from, to) },
+            dao = database.agendaCacheDao()
+        )
     }
     val scope = rememberCoroutineScope()
     val navigation = rememberNavController()
@@ -221,7 +228,7 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
                 BarberWorkingHoursScreen(api, token) { navigation.popBackStack() }
             }
             composable(BarberRoute.STATS) {
-                BarberStatisticsScreen()
+                BarberStatisticsScreen(statisticsRepository, token, revision)
             }
             composable(BarberRoute.MORE) {
                 val lastCacheWriteAt by repository.lastCacheWriteAt.collectAsState()

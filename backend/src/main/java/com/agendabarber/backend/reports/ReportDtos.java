@@ -14,7 +14,7 @@ public final class ReportDtos {
             LocalDate from, LocalDate to, String timezone,
             long completedAppointments, long haircuts, long receiptedAppointments,
             long missingReceipts, BigDecimal revenue, BigDecimal expenses,
-            BigDecimal estimatedProfit, BigDecimal averageTicket) {
+            BigDecimal estimatedProfit, BigDecimal averageTicket, long cancellations) {
     }
 
     public record DailyMetric(
