@@ -1,11 +1,13 @@
 package com.agendabarber.app.ui
 
+import com.agendabarber.app.network.ReportDashboardView
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** UI-only contract. Financial API integration belongs to F03-03. */
+/** UI models derived from F03-02 reporting, without simulated production values. */
 internal data class DailyRevenue(val day: Int, val amount: BigDecimal)
 
 internal data class RankedService(val name: String, val completed: Int)
@@ -16,14 +18,45 @@ internal data class StatisticsSnapshot(
     val averageTicket: BigDecimal,
     val cancellations: Int,
     val dailyRevenue: List<DailyRevenue>,
-    val topServices: List<RankedService>
+    val topServices: List<RankedService>,
+    val expenses: BigDecimal = BigDecimal.ZERO,
+    val estimatedProfit: BigDecimal = BigDecimal.ZERO,
+    val missingReceipts: Long = 0,
+    val completedAppointments: Long = 0,
+    val timezone: String = "America/Sao_Paulo"
 )
 
 internal sealed interface StatisticsState {
     data object Empty : StatisticsState
     data object Loading : StatisticsState
     data class Failed(val message: String) : StatisticsState
-    data class Available(val snapshot: StatisticsSnapshot) : StatisticsState
+    data class Available(
+        val snapshot: StatisticsSnapshot,
+        val fromCache: Boolean = false,
+        val synchronizedAt: Long? = null
+    ) : StatisticsState
+}
+
+/** Only actual receipts from the API are shown; a zero total does not imply historical receipts were known. */
+internal fun reportToStatistics(report: ReportDashboardView): StatisticsSnapshot {
+    val summary = report.summary
+    return StatisticsSnapshot(
+        revenue = summary.revenue,
+        completedCuts = Math.toIntExact(summary.haircuts),
+        averageTicket = summary.averageTicket,
+        cancellations = Math.toIntExact(summary.cancellations),
+        dailyRevenue = report.daily.map {
+            DailyRevenue(LocalDate.parse(it.date).dayOfMonth, it.revenue)
+        },
+        topServices = report.popularServices.map {
+            RankedService(it.serviceName, Math.toIntExact(it.completedAppointments))
+        },
+        expenses = summary.expenses,
+        estimatedProfit = summary.estimatedProfit,
+        missingReceipts = summary.missingReceipts,
+        completedAppointments = summary.completedAppointments,
+        timezone = summary.timezone
+    )
 }
 
 internal fun statisticsMonthCaption(month: YearMonth): String =

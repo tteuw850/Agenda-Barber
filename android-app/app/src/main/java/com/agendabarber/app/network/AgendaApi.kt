@@ -128,6 +128,36 @@ data class ExpenseView(
     val category: String
 )
 
+/** F03-02 reporting endpoint: all money values are decimal, not floating-point. */
+data class ReportSummaryView(
+    val from: String,
+    val to: String,
+    val timezone: String,
+    val completedAppointments: Long,
+    val haircuts: Long,
+    val receiptedAppointments: Long,
+    val missingReceipts: Long,
+    val revenue: BigDecimal,
+    val expenses: BigDecimal,
+    val estimatedProfit: BigDecimal,
+    val averageTicket: BigDecimal,
+    val cancellations: Long
+)
+
+data class ReportDailyView(val date: String, val revenue: BigDecimal)
+
+data class ReportPopularView(
+    val serviceId: String,
+    val serviceName: String,
+    val completedAppointments: Long
+)
+
+data class ReportDashboardView(
+    val summary: ReportSummaryView,
+    val daily: List<ReportDailyView>,
+    val popularServices: List<ReportPopularView>
+)
+
 data class CreateClient(
     val name: String,
     val phone: String?,
@@ -139,6 +169,13 @@ data class CreateClient(
 interface AgendaApi {
     @POST("api/v1/auth/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
+
+    @GET("api/v1/reports/dashboard")
+    suspend fun reportingDashboard(
+        @Header("Authorization") bearer: String,
+        @Query("from") from: String,
+        @Query("to") to: String
+    ): ReportDashboardView
 
     @GET("api/v1/appointments")
     suspend fun appointments(

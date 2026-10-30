@@ -32,6 +32,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -45,6 +47,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.agendabarber.app.cache.StatisticsRepository
 import com.agendabarber.app.servicecatalog.formatBrl
 import com.agendabarber.app.ui.theme.StatsBackground
 import com.agendabarber.app.ui.theme.StatsCancellationsCard
@@ -56,32 +59,57 @@ import com.agendabarber.app.ui.theme.StatsSurface
 import com.agendabarber.app.ui.theme.StatsTextPrimary
 import com.agendabarber.app.ui.theme.StatsTextSecondary
 import com.agendabarber.app.ui.theme.StatsTicketCard
+import java.time.Instant
 import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.CancellationException
+import retrofit2.HttpException
 import java.time.ZoneId
 
+private fun statisticsError(error: Exception): String = when ((error as? HttpException)?.code()) {
+    400 -> "Período inválido. Selecione outro mês."
+    401, 403 -> "Sessão expirada ou sem acesso. Entre novamente para visualizar os resultados."
+    else -> "Não foi possível carregar os indicadores. Verifique a conexão e tente atualizar."
+}
+
 @Composable
-internal fun BarberStatisticsScreen() {
+internal fun BarberStatisticsScreen(repository: StatisticsRepository, token: String, revision: Int) {
     var monthCode by rememberSaveable {
         mutableStateOf(YearMonth.now(ZoneId.of("America/Sao_Paulo")).toString())
     }
     var showExample by rememberSaveable { mutableStateOf(false) }
+    var refresh by remember { mutableStateOf(0) }
+    var actualState by remember(token) { mutableStateOf<StatisticsState>(StatisticsState.Loading) }
     val month = YearMonth.parse(monthCode)
-    val state = if (showExample) {
-        StatisticsState.Available(exampleStatistics(month))
-    } else {
-        StatisticsState.Empty
+
+    LaunchedEffect(repository, token, monthCode, revision, refresh) {
+        actualState = StatisticsState.Loading
+        try {
+            val result = repository.dashboard(token, month)
+            actualState = StatisticsState.Available(
+                reportToStatistics(result.dashboard),
+                result.fromCache,
+                result.synchronizedAt
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            actualState = StatisticsState.Failed(statisticsError(error))
+        }
     }
+
     StatisticsDashboard(
         month = month,
-        state = state,
+        state = if (showExample) StatisticsState.Available(exampleStatistics(month)) else actualState,
         isDemonstration = showExample,
         onPreviousMonth = { monthCode = month.minusMonths(1).toString() },
         onNextMonth = { monthCode = month.plusMonths(1).toString() },
-        onToggleDemonstration = { showExample = !showExample }
+        onToggleDemonstration = { showExample = !showExample },
+        onRefresh = { refresh++ }
     )
 }
 
-/** The state parameter can be connected to the real reporting API in F03-03. */
+/** UX-09 layout is unchanged; real data is loaded by BarberStatisticsScreen. */
 @Composable
 internal fun StatisticsDashboard(
     month: YearMonth,
@@ -89,7 +117,8 @@ internal fun StatisticsDashboard(
     isDemonstration: Boolean,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
-    onToggleDemonstration: () -> Unit
+    onToggleDemonstration: () -> Unit,
+    onRefresh: () -> Unit
 ) {
     val snapshot = (state as? StatisticsState.Available)?.snapshot
     Column(
@@ -124,10 +153,31 @@ internal fun StatisticsDashboard(
                 Icon(Icons.Outlined.ChevronRight, contentDescription = "Próximo mês", tint = StatsTextPrimary)
             }
         }
-        if (isDemonstration) {
-            StatusNote("PRÉVIA ILUSTRATIVA — valores fictícios, não representam seu negócio.")
-        } else {
-            StatusNote("Sem dados financeiros conectados. A integração real será feita na F03-03.")
+        when {
+            isDemonstration -> StatusNote("PRÉVIA ILUSTRATIVA — valores fictícios, não representam seu negócio.")
+            state is StatisticsState.Loading -> StatusNote("Buscando resultados financeiros...")
+            state is StatisticsState.Failed -> StatusNote(state.message)
+            state is StatisticsState.Available -> {
+                val money = "Despesas: " + formatBrl(state.snapshot.expenses) +
+                    " • Lucro estimado: " + formatBrl(state.snapshot.estimatedProfit)
+                val source = if (state.fromCache) {
+                    val lastSync = state.synchronizedAt?.let {
+                        DateTimeFormatter.ofPattern("dd/MM HH:mm").format(
+                            Instant.ofEpochMilli(it).atZone(ZoneId.of(state.snapshot.timezone))
+                        )
+                    } ?: "data desconhecida"
+                    "OFFLINE • Última sincronização: " + lastSync + ". "
+                } else {
+                    "Dados atualizados. "
+                }
+                val unknown = if (state.snapshot.missingReceipts > 0) {
+                    " • " + state.snapshot.missingReceipts + " atendimentos sem recebimento informado"
+                } else {
+                    ""
+                }
+                StatusNote(source + money + unknown)
+            }
+            else -> StatusNote("Nenhum resultado disponível neste período.")
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatisticsKpi(
@@ -186,7 +236,7 @@ internal fun StatisticsDashboard(
                 } else if (snapshot == null) {
                     "Sem dados"
                 } else {
-                    "No mês"
+                    "Cancelados no mês"
                 },
                 icon = Icons.Outlined.Close,
                 background = StatsCancellationsCard,
@@ -197,7 +247,7 @@ internal fun StatisticsDashboard(
         StatisticsPanel(title = "Faturamento por dia") {
             val values = snapshot?.dailyRevenue.orEmpty()
             if (values.isEmpty()) {
-                ChartEmptyText("Gráfico disponível após integração dos resultados.")
+                ChartEmptyText("Sem faturamento registrado neste período.")
             } else {
                 val highest = values.maxOf { it.amount }
                 Row(
@@ -241,7 +291,7 @@ internal fun StatisticsDashboard(
         StatisticsPanel(title = "Serviços mais realizados") {
             val services = snapshot?.topServices.orEmpty()
             if (services.isEmpty()) {
-                ChartEmptyText("Ranking disponível após integração dos atendimentos.")
+                ChartEmptyText("Nenhum serviço concluído neste período.")
             } else {
                 val maximum = services.maxOf { it.completed }
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -283,14 +333,16 @@ internal fun StatisticsDashboard(
             is StatisticsState.Failed -> ChartEmptyText(state.message)
             else -> Unit
         }
-        TextButton(
-            onClick = onToggleDemonstration,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        ) {
-            Text(
-                if (isDemonstration) "Ocultar demonstração" else "Ver prévia com dados fictícios",
-                color = StatsTextPrimary
-            )
+        Row(modifier = Modifier.align(Alignment.CenterHorizontally)) {
+            TextButton(onClick = onRefresh) {
+                Text("Atualizar", color = StatsTextPrimary)
+            }
+            TextButton(onClick = onToggleDemonstration) {
+                Text(
+                    if (isDemonstration) "Ocultar demonstração" else "Ver prévia fictícia",
+                    color = StatsTextPrimary
+                )
+            }
         }
         Text(
             "A visualização de exemplo não consulta a API e não registra valores.",
