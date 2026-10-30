@@ -1,0 +1,76 @@
+name: CD - Render Development (manual only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Digite DEPLOY_DEV para solicitar deploy somente no Render DEV'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agenda-barber-render-development
+  cancel-in-progress: false
+
+jobs:
+  authorization-gate:
+    name: Require main branch and explicit development confirmation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Reject other branches and missing confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::Deploy somente a partir de main."
+            exit 1
+          fi
+          if [[ "$CONFIRMATION" != "DEPLOY_DEV" ]]; then
+            echo "::error::Confirme com DEPLOY_DEV."
+            exit 1
+          fi
+
+  deploy-development:
+    name: Request Render DEV deployment (not production)
+    needs: authorization-gate
+    runs-on: ubuntu-latest
+    environment:
+      name: development
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Recheck backend before deploy
+        run: mvn -B -ntp -f backend/pom.xml verify
+      - name: Trigger Render Development deploy via GitHub Secret
+        env:
+          RENDER_DEV_DEPLOY_HOOK: ${{ secrets.RENDER_DEV_DEPLOY_HOOK }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$RENDER_DEV_DEPLOY_HOOK" ]]; then
+            echo "::error::Secret RENDER_DEV_DEPLOY_HOOK nao configurado no environment development."
+            exit 1
+          fi
+          if [[ ! "$RENDER_DEV_DEPLOY_HOOK" =~ ^https://api[.]render[.]com/deploy/srv-[A-Za-z0-9]+[?]key=[A-Za-z0-9_-]+$ ]]; then
+            echo "::error::Deploy hook invalido. Esperado somente Render API /deploy/srv-... do ambiente dev."
+            exit 1
+          fi
+          # Nunca imprima a URL: ela contém credencial. O curl inicia um deploy,
+          # mas nao comprova que uma nova versao ja ficou operacional.
+          curl --fail --silent --show-error --max-time 45 \
+            --request POST "$RENDER_DEV_DEPLOY_HOOK" > /dev/null
+          echo "Deploy DEV solicitado ao Render. Acompanhe o status no painel do Render."

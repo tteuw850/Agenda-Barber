@@ -15,14 +15,14 @@ Na F02 anexar ou manter o mockup original acessível para conferir lado a lado. 
 | 06 | Clientes | F02-10 | Busca, filtros, estrela, última visita, nav |
 | 07 | Serviços | F02-11 | Lista de cards com duração, valor e + Novo |
 | 08 | Bloquear Horário | F02-12 | Único/Recorrente, data, intervalos, motivo, CTA |
-| 09 | Estatísticas | F02-13; dados F03-03 | Fundo BRANCO, KPIs pastel, gráficos azuis, nav escura |
+| 09 | Estatísticas | F02-13; dados F03-03 | Fundo grafite, texto branco/cinza legível, KPIs escuros com detalhes dourados/coloridos, nav escura |
 | 10 | Mais | F02-14 | Perfil e 7 opções na ordem, Sair vermelho, nav |
 
 ## Critérios de fidelidade
 - [ ] Screenshots Android das 10 telas comparados à referência em tamanho equivalente (sem esticar imagens).
 - [ ] Cores, contraste, posição das áreas, proporções, tipografia e raio de bordas coerentes com print.
 - [ ] Bottom-nav Agenda | Clientes | + central | Estatísticas | Mais; destaque dourado nas abas.
-- [ ] Estatísticas LIGHT, telas restantes DARK; barra inferior DARK inclusive na UX-09.
+- [ ] Estatísticas DARK como as demais telas; barra inferior DARK, títulos e KPIs de alto contraste.
 - [ ] Avatares, ícones, chips, campos e CTAs na ordem e posição da referência.
 - [ ] Os botões nunca são apenas decorativos: navegam, executam a ação ou mostram indisponibilidade explicada.
 

@@ -19,11 +19,16 @@ public final class AppointmentDtos {
             @Size(max = 2000) String notes) {
     }
 
+    public record CompleteAppointment(
+            @NotNull @DecimalMin("0.00") @Digits(integer = 10, fraction = 2) BigDecimal receivedAmount) {
+    }
+
     public record AppointmentView(
             UUID id, UUID clientId, String clientName, String clientPhone,
             UUID serviceId, String serviceName, int durationMinutes, BigDecimal price,
             Instant startsAt, Instant endsAt, String status, String notes,
-            Instant completedAt, long version, Instant createdAt, Instant updatedAt) {
+            Instant completedAt, long version, Instant createdAt, Instant updatedAt,
+            BigDecimal receivedAmount) {
     }
 
     public record HistoryItem(

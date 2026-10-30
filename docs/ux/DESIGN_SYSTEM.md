@@ -5,7 +5,7 @@ Mockup original com dez telas enviado em 24/10/2026 e especificado no Trello: ht
 A implementação F02 deve reproduzir a referência visual, não reinventar o layout. Os códigos abaixo são aproximações iniciais sujeitas à comparação por screenshot.
 
 ## Identidade e paleta
-Estética premium de barbearia, tipografia sans-serif, fundos grafite, superfícies em camadas, texto claro e acentos dourados. UX-09 Estatísticas é a exceção CLARA (fundo branco), mantendo a barra de navegação inferior ESCURA.
+Estética premium de barbearia, tipografia sans-serif, fundos grafite, superfícies em camadas, texto claro e acentos dourados. UX-09 Estatísticas segue também o tema DARK/grafite com textos de alto contraste, conforme correção aprovada pelo usuário em 28/10/2026; a barra inferior permanece escura.
 
 | Token Kotlin | Valor HEX | Uso |
 |---|---|---|
@@ -51,10 +51,10 @@ Medidas-alvo iniciais em dp, conferir visualmente antes de aprovar:
 - Linha de tempo da agenda com horários alinhados à esquerda e cards à direita.
 
 ## Barra de navegação
-Agenda | Clientes | botão central (+) | Estatísticas | Mais. Ícone ativo e label dourados; itens inativos discretos. O (+) é maior e abre Novo Agendamento. Em UX-09, a barra continua ESCURA mesmo com conteúdo claro.
+Agenda | Clientes | botão central (+) | Estatísticas | Mais. Ícone ativo e label dourados; itens inativos discretos. O (+) é maior e abre Novo Agendamento. Em UX-09, conteúdo e barra inferior usam grafite escuro, com rótulos legíveis.
 
 ## Tema Compose
-Color.kt contém tokens; Type.kt define a hierarquia; Theme.kt expõe AgendaBarberTheme(statisticsScreen = false). Aplicar statisticsScreen=true apenas no conteúdo de UX-09. Esta etapa não substitui MainActivity nem adiciona telas navegáveis.
+Color.kt contém tokens; Type.kt define a hierarquia; Theme.kt expõe AgendaBarberTheme com esquema DARK unificado para todas as abas, inclusive UX-09. Esta etapa não substitui MainActivity nem adiciona telas navegáveis.
 
 ## Acessibilidade e fidelidade
 Área de toque >=48dp, contraste e TalkBack, Dynamic Type/fontScale, teclado sem sobreposição, conteúdo rolável em telas menores, estado offline legível. Evitar dependência de fotos remotas; placeholders coerentes com mockup.
