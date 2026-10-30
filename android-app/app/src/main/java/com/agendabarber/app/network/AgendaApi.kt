@@ -146,11 +146,7 @@ data class ReportSummaryView(
 
 data class ReportDailyView(val date: String, val revenue: BigDecimal)
 
-data class ReportPopularView(
-    val serviceId: String,
-    val serviceName: String,
-    val completedAppointments: Long
-)
+data class ReportPopularView(val serviceId: String, val serviceName: String, val completedAppointments: Long)
 
 data class ReportDashboardView(
     val summary: ReportSummaryView,
