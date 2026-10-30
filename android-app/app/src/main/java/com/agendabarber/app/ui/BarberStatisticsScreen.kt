@@ -33,9 +33,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -61,10 +61,10 @@ import com.agendabarber.app.ui.theme.StatsTextSecondary
 import com.agendabarber.app.ui.theme.StatsTicketCard
 import java.time.Instant
 import java.time.YearMonth
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.CancellationException
 import retrofit2.HttpException
-import java.time.ZoneId
 
 private fun statisticsError(error: Exception): String = when ((error as? HttpException)?.code()) {
     400 -> "Período inválido. Selecione outro mês."
