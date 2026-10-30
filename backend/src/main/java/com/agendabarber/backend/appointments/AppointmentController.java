@@ -2,6 +2,7 @@ package com.agendabarber.backend.appointments;
 
 import com.agendabarber.backend.appointments.AppointmentDtos.AppointmentView;
 import com.agendabarber.backend.appointments.AppointmentDtos.CreateAppointment;
+import com.agendabarber.backend.appointments.AppointmentDtos.CompleteAppointment;
 import com.agendabarber.backend.appointments.AppointmentDtos.HistoryItem;
 import jakarta.validation.Valid;
 import java.net.URI;
@@ -89,8 +90,9 @@ public class AppointmentController {
     }
 
     @PostMapping("/{id}/complete")
-    public AppointmentView complete(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
-        return appointments.transition(barber(jwt), id, "COMPLETED");
+    public AppointmentView complete(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                    @Valid @RequestBody CompleteAppointment input) {
+        return appointments.complete(barber(jwt), id, input.receivedAmount());
     }
 
     @PostMapping("/{id}/cancel")
