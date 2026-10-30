@@ -82,13 +82,18 @@ public class ReportService {
                         + " WHERE barber_id=? AND deleted_at IS NULL"
                         + " AND occurred_on BETWEEN ? AND ?",
                 BigDecimal.class, barberId, period.from(), period.to());
+        Long cancellations = jdbc.queryForObject(
+                "SELECT count(*) FROM appointment_events WHERE barber_id=?"
+                        + " AND event_type='CANCELLED' AND happened_at>=? AND happened_at<?",
+                Long.class, barberId, period.start(), period.end());
         BigDecimal revenue = money(counts.revenue());
         BigDecimal totalExpenses = money(expenses);
         BigDecimal ticket = counts.receipted() == 0 ? ZERO
                 : revenue.divide(BigDecimal.valueOf(counts.receipted()), 2, RoundingMode.HALF_UP);
         return new Summary(period.from(), period.to(), period.zone().getId(),
                 counts.completed(), counts.haircuts(), counts.receipted(),
-                counts.missing(), revenue, totalExpenses, revenue.subtract(totalExpenses), ticket);
+                counts.missing(), revenue, totalExpenses, revenue.subtract(totalExpenses), ticket,
+                cancellations == null ? 0 : cancellations);
     }
 
     private List<DailyMetric> daily(UUID barberId, Period period) {
