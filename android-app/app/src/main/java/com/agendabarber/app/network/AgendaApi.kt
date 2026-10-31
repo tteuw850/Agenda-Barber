@@ -254,7 +254,11 @@ interface AgendaApi {
     ): ClientView
 
     @POST("api/v1/clients")
-    suspend fun newClient(@Header("Authorization") bearer: String, @Body request: CreateClient): ClientView
+    suspend fun newClient(
+        @Header("Authorization") bearer: String,
+        @Header("Idempotency-Key") key: String,
+        @Body request: CreateClient
+    ): ClientView
 
     @GET("api/v1/services")
     suspend fun services(
@@ -263,7 +267,11 @@ interface AgendaApi {
     ): List<ServiceView>
 
     @POST("api/v1/services")
-    suspend fun createService(@Header("Authorization") bearer: String, @Body request: ServiceWriteRequest): ServiceView
+    suspend fun createService(
+        @Header("Authorization") bearer: String,
+        @Header("Idempotency-Key") key: String,
+        @Body request: ServiceWriteRequest
+    ): ServiceView
 
     @PATCH("api/v1/services/{id}")
     suspend fun updateService(
@@ -296,7 +304,11 @@ interface AgendaApi {
     suspend fun blocks(@Header("Authorization") bearer: String, @Query("date") date: String): List<SingleBlockView>
 
     @POST("api/v1/schedule/blocks")
-    suspend fun createBlock(@Header("Authorization") bearer: String, @Body request: SingleBlockInput): SingleBlockView
+    suspend fun createBlock(
+        @Header("Authorization") bearer: String,
+        @Header("Idempotency-Key") key: String,
+        @Body request: SingleBlockInput
+    ): SingleBlockView
 
     @DELETE("api/v1/schedule/blocks/{id}")
     suspend fun deleteBlock(@Header("Authorization") bearer: String, @Path("id") id: String)
@@ -305,7 +317,11 @@ interface AgendaApi {
     suspend fun recurringBlocks(@Header("Authorization") bearer: String): List<RecurringBlockView>
 
     @POST("api/v1/schedule/recurring-blocks")
-    suspend fun addWeekly(@Header("Authorization") token: String, @Body data: RecurringBlockInput): RecurringBlockView
+    suspend fun addWeekly(
+        @Header("Authorization") token: String,
+        @Header("Idempotency-Key") key: String,
+        @Body data: RecurringBlockInput
+    ): RecurringBlockView
 
     @DELETE("api/v1/schedule/recurring-blocks/{id}")
     suspend fun deleteRecurringBlock(@Header("Authorization") bearer: String, @Path("id") id: String)

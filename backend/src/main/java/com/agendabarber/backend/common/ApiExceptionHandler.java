@@ -113,6 +113,18 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.CONFLICT, "Conflict", "Requested time is unavailable.");
     }
 
+    @ExceptionHandler(CreateIdempotencyExecutor.InvalidIdempotencyKeyException.class)
+    ResponseEntity<ProblemDetail> invalidIdempotencyKey(
+            CreateIdempotencyExecutor.InvalidIdempotencyKeyException ignored) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid request", "Invalid idempotency key.");
+    }
+
+    @ExceptionHandler(CreateIdempotencyExecutor.IdempotencyConflictException.class)
+    ResponseEntity<ProblemDetail> conflictingIdempotencyKey(
+            CreateIdempotencyExecutor.IdempotencyConflictException ignored) {
+        return problem(HttpStatus.CONFLICT, "Conflict", "Idempotency key reused for another request.");
+    }
+
     @ExceptionHandler(ExpenseService.InvalidExpenseException.class)
     ResponseEntity<ProblemDetail> invalidExpense(ExpenseService.InvalidExpenseException ignored) {
         return problem(HttpStatus.BAD_REQUEST, "Invalid request", "Invalid expense data.");
@@ -164,7 +176,8 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler({CannotCreateTransactionException.class,
                        DataAccessResourceFailureException.class,
-                       TransientDataAccessException.class})
+                       TransientDataAccessException.class,
+                       ReadRetryExecutor.UnavailableAfterRetries.class})
     ResponseEntity<ProblemDetail> unavailableDatabase(RuntimeException ignored) {
         String sqlState = "unknown";
         for (Throwable cause = ignored; cause != null; cause = cause.getCause()) {
@@ -177,8 +190,14 @@ public class ApiExceptionHandler {
                 ignored.getClass().getSimpleName(), sqlState);
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .header(HttpHeaders.RETRY_AFTER, "5")
-                .body(problemBody(HttpStatus.SERVICE_UNAVAILABLE,
-                        "Service unavailable", "Storage temporarily unavailable."));
+                .body(unavailableBody());
+    }
+
+    private ProblemDetail unavailableBody() {
+        ProblemDetail body = problemBody(HttpStatus.SERVICE_UNAVAILABLE,
+                "Service unavailable", "Storage temporarily unavailable.");
+        body.setProperty("code", "DB_TEMPORARILY_UNAVAILABLE");
+        return body;
     }
 
     private ProblemDetail problemBody(HttpStatus status, String title, String detail) {

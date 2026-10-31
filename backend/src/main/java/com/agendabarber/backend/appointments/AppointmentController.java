@@ -1,5 +1,6 @@
 package com.agendabarber.backend.appointments;
 
+import com.agendabarber.backend.common.ReadRetryExecutor;
 import com.agendabarber.backend.appointments.AppointmentDtos.AppointmentView;
 import com.agendabarber.backend.appointments.AppointmentDtos.CreateAppointment;
 import com.agendabarber.backend.appointments.AppointmentDtos.CompleteAppointment;
@@ -31,9 +32,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/appointments")
 public class AppointmentController {
     private final AppointmentService appointments;
+    private final ReadRetryExecutor retry;
 
-    public AppointmentController(AppointmentService appointments) {
+    public AppointmentController(AppointmentService appointments, ReadRetryExecutor retry) {
         this.appointments = appointments;
+        this.retry = retry;
     }
 
     @GetMapping
@@ -43,17 +46,17 @@ public class AppointmentController {
             @RequestParam(defaultValue = "all") String status,
             @RequestParam(defaultValue = "100") int limit,
             @RequestParam(defaultValue = "0") int offset) {
-        return appointments.list(barber(jwt), date, view, status, limit, offset);
+        return retry.run(() -> appointments.list(barber(jwt), date, view, status, limit, offset));
     }
 
     @GetMapping("/{id}")
     public AppointmentView get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
-        return appointments.get(barber(jwt), id);
+        return retry.run(() -> appointments.get(barber(jwt), id));
     }
 
     @GetMapping("/{id}/history")
     public List<HistoryItem> history(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
-        return appointments.history(barber(jwt), id);
+        return retry.run(() -> appointments.history(barber(jwt), id));
     }
 
     @PostMapping

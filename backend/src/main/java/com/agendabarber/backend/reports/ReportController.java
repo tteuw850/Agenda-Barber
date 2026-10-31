@@ -1,5 +1,6 @@
 package com.agendabarber.backend.reports;
 
+import com.agendabarber.backend.common.ReadRetryExecutor;
 import com.agendabarber.backend.reports.ReportDtos.DailyMetric;
 import com.agendabarber.backend.reports.ReportDtos.Dashboard;
 import com.agendabarber.backend.reports.ReportDtos.PopularService;
@@ -24,9 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Financial reports", description = "Owner-scoped revenue, costs and completed services")
 public class ReportController {
     private final ReportService reports;
+    private final ReadRetryExecutor retry;
 
-    public ReportController(ReportService reports) {
+    public ReportController(ReportService reports, ReadRetryExecutor retry) {
         this.reports = reports;
+        this.retry = retry;
     }
 
     @GetMapping("/dashboard")
@@ -36,7 +39,7 @@ public class ReportController {
     public Dashboard dashboard(@AuthenticationPrincipal Jwt jwt,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return reports.dashboard(barber(jwt), from, to);
+        return retry.run(() -> reports.dashboard(barber(jwt), from, to));
     }
 
     @GetMapping("/summary")
@@ -46,7 +49,7 @@ public class ReportController {
     public Summary summary(@AuthenticationPrincipal Jwt jwt,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return reports.summary(barber(jwt), from, to);
+        return retry.run(() -> reports.summary(barber(jwt), from, to));
     }
 
     @GetMapping("/daily")
@@ -54,7 +57,7 @@ public class ReportController {
     public List<DailyMetric> daily(@AuthenticationPrincipal Jwt jwt,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return reports.daily(barber(jwt), from, to);
+        return retry.run(() -> reports.daily(barber(jwt), from, to));
     }
 
     @GetMapping("/popular-services")
@@ -63,7 +66,7 @@ public class ReportController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(defaultValue = "10") int limit) {
-        return reports.popularServices(barber(jwt), from, to, limit);
+        return retry.run(() -> reports.popularServices(barber(jwt), from, to, limit));
     }
 
     private static UUID barber(Jwt jwt) {
