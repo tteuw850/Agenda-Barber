@@ -38,7 +38,7 @@ class BlockIdempotencyIntegrationTests {
     static void setup() {
         DataSource data = new DriverManagerDataSource(
                 postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
-        assertEquals(7, Flyway.configure().dataSource(data)
+        assertEquals(8, Flyway.configure().dataSource(data)
                 .locations("classpath:db/migration").load().migrate().migrationsExecuted);
         jdbc = new JdbcTemplate(data);
         schedule = new ScheduleConfigService(jdbc);
