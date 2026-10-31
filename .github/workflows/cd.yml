@@ -1,0 +1,123 @@
+name: CD - AWS EC2 DEV (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DEPLOY_AWS_DEV to deploy to the development EC2
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agenda-barber-aws-development
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    name: Require main branch and explicit approval
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate target and confirmation
+        shell: bash
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$CONFIRMATION" = "DEPLOY_AWS_DEV"
+
+  deploy:
+    name: Build in CI, deploy only to EC2 DEV
+    needs: authorize
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment:
+      name: development
+    env:
+      AWS_HOST: ${{ vars.AWS_DEV_HOST }}
+      AWS_BASE_URL: ${{ vars.AWS_DEV_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Validate AWS destination
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$AWS_HOST" =~ ^[a-zA-Z0-9.-]+$ || "$AWS_BASE_URL" != https://* ]]; then
+            echo "::error::AWS_DEV_HOST or AWS_DEV_BASE_URL is not configured correctly."
+            exit 1
+          fi
+
+      - name: Verify Java tests and Checkstyle
+        run: mvn -B -ntp -f backend/pom.xml verify
+
+      - name: Build versioned Docker image on GitHub runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          short="$(printf '%s' "$GITHUB_SHA" | cut -c1-7)"
+          image="agenda-barber-dev:aws-$short"
+          docker build --file backend/Dockerfile --tag "$image" backend
+          docker save "$image" | gzip -1 > "$RUNNER_TEMP/agenda-barber-image.tar.gz"
+
+      - name: Configure dedicated SSH deployment credential and pinned host
+        shell: bash
+        env:
+          DEPLOY_KEY: ${{ secrets.AWS_DEV_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.AWS_DEV_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$DEPLOY_KEY" || -z "$KNOWN_HOSTS" ]]; then
+            echo "::error::Missing AWS SSH credentials in GitHub development environment."
+            exit 1
+          fi
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/aws_deploy"
+          chmod 600 "$HOME/.ssh/aws_deploy"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -F "$AWS_HOST" -f "$HOME/.ssh/known_hosts" > /dev/null
+
+      - name: Transfer release image and deployment script to EC2
+        shell: bash
+        run: |
+          set -euo pipefail
+          short="$(printf '%s' "$GITHUB_SHA" | cut -c1-7)"
+          ssh_opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -i "$HOME/.ssh/aws_deploy")
+          scp "${ssh_opts[@]}" "$RUNNER_TEMP/agenda-barber-image.tar.gz" \
+            "ubuntu@$AWS_HOST:/tmp/agenda-barber-$short.tar.gz"
+          scp "${ssh_opts[@]}" scripts/deploy/aws-ec2-release.sh \
+            "ubuntu@$AWS_HOST:/tmp/agenda-barber-release-$short.sh"
+
+      - name: Activate release with rollback on failed local health
+        shell: bash
+        run: |
+          set -euo pipefail
+          short="$(printf '%s' "$GITHUB_SHA" | cut -c1-7)"
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 \
+            -i "$HOME/.ssh/aws_deploy" "ubuntu@$AWS_HOST" \
+            "bash /tmp/agenda-barber-release-$short.sh $short"
+
+      - name: Verify public HTTPS and protected endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${AWS_BASE_URL%/}"
+          response="$(curl -fsS --connect-timeout 10 --max-time 30 "$base/actuator/health")"
+          printf '%s' "$response" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"'
+          unauth="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$base/api/v1/clients")"
+          test "$unauth" = 401
+          echo "AWS DEV release is healthy, and protected endpoints require authentication."
