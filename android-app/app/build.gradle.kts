@@ -13,7 +13,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
-        buildConfigField("String", "API_BASE_URL", "\\\"https://18-216-115-216.sslip.io/\\\"")
+        buildConfigField("String", "API_BASE_URL", "\"https://18-216-115-216.sslip.io/\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
