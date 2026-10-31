@@ -113,6 +113,18 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.CONFLICT, "Conflict", "Requested time is unavailable.");
     }
 
+    @ExceptionHandler(CreateIdempotencyExecutor.InvalidIdempotencyKeyException.class)
+    ResponseEntity<ProblemDetail> invalidIdempotencyKey(
+            CreateIdempotencyExecutor.InvalidIdempotencyKeyException ignored) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid request", "Invalid idempotency key.");
+    }
+
+    @ExceptionHandler(CreateIdempotencyExecutor.IdempotencyConflictException.class)
+    ResponseEntity<ProblemDetail> conflictingIdempotencyKey(
+            CreateIdempotencyExecutor.IdempotencyConflictException ignored) {
+        return problem(HttpStatus.CONFLICT, "Conflict", "Idempotency key reused for another request.");
+    }
+
     @ExceptionHandler(ExpenseService.InvalidExpenseException.class)
     ResponseEntity<ProblemDetail> invalidExpense(ExpenseService.InvalidExpenseException ignored) {
         return problem(HttpStatus.BAD_REQUEST, "Invalid request", "Invalid expense data.");

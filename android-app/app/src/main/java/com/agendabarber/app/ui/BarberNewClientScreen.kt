@@ -81,6 +81,7 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.UUID
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
@@ -111,6 +112,7 @@ internal fun BarberNewClientScreen(api: AgendaApi, token: String, onBack: () -> 
     var pickerOpen by rememberSaveable { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
+    var pendingSubmission by remember { mutableStateOf<Pair<CreateClient, String>?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -169,20 +171,20 @@ internal fun BarberNewClientScreen(api: AgendaApi, token: String, onBack: () -> 
         bottomBar = {
             Button(
                 onClick = {
+                    val request = CreateClient(
+                        name = name.trim(),
+                        phone = phone.ifBlank { null },
+                        email = email.trim().ifBlank { null },
+                        birthDate = birthDate.ifBlank { null },
+                        notes = notes.trim().ifBlank { null }
+                    )
+                    val key = pendingSubmission?.takeIf { it.first == request }?.second
+                        ?: UUID.randomUUID().toString().also { pendingSubmission = request to it }
                     busy = true
                     error = ""
                     scope.launch {
                         try {
-                            val created = api.newClient(
-                                token,
-                                CreateClient(
-                                    name = name.trim(),
-                                    phone = phone.ifBlank { null },
-                                    email = email.trim().ifBlank { null },
-                                    birthDate = birthDate.ifBlank { null },
-                                    notes = notes.trim().ifBlank { null }
-                                )
-                            )
+                            val created = api.newClient(token, key, request)
                             onCreated(created)
                         } catch (failure: Exception) {
                             error = if ((failure as? HttpException)?.code() == 409) {

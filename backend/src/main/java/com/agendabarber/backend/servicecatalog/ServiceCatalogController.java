@@ -1,5 +1,6 @@
 package com.agendabarber.backend.servicecatalog;
 
+import com.agendabarber.backend.common.CreateIdempotencyExecutor;
 import com.agendabarber.backend.common.ReadRetryExecutor;
 import com.agendabarber.backend.servicecatalog.ServiceCatalogDtos.CreateService;
 import com.agendabarber.backend.servicecatalog.ServiceCatalogDtos.ServiceView;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,10 +30,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class ServiceCatalogController {
     private final ServiceCatalogService catalog;
     private final ReadRetryExecutor retry;
+    private final CreateIdempotencyExecutor idempotency;
 
-    public ServiceCatalogController(ServiceCatalogService catalog, ReadRetryExecutor retry) {
+    public ServiceCatalogController(ServiceCatalogService catalog, ReadRetryExecutor retry,
+            CreateIdempotencyExecutor idempotency) {
         this.catalog = catalog;
         this.retry = retry;
+        this.idempotency = idempotency;
     }
 
     @GetMapping
@@ -47,8 +52,12 @@ public class ServiceCatalogController {
 
     @PostMapping
     public ResponseEntity<ServiceView> create(@AuthenticationPrincipal Jwt jwt,
-                                               @Valid @RequestBody CreateService request) {
-        ServiceView created = catalog.create(barberId(jwt), request);
+            @RequestHeader(value = "Idempotency-Key", required = false) String key,
+            @Valid @RequestBody CreateService request) {
+        UUID barber = barberId(jwt);
+        ServiceView created = idempotency.run(barber, UUID.fromString(jwt.getSubject()),
+                key, "SERVICE_CREATE", request, () -> catalog.create(barber, request),
+                ServiceView::id, id -> catalog.get(barber, id));
         return ResponseEntity.created(URI.create("/api/v1/services/" + created.id())).body(created);
     }
 

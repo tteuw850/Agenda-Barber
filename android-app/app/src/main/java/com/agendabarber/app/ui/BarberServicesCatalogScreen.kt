@@ -62,6 +62,7 @@ import com.agendabarber.app.ui.theme.BarberOnGold
 import com.agendabarber.app.ui.theme.BarberSurface
 import com.agendabarber.app.ui.theme.BarberTextSecondary
 import java.math.BigDecimal
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -98,6 +99,7 @@ private fun iconFor(key: String): ImageVector = when (key) {
 
 @Composable
 internal fun BarberServicesCatalogScreen(api: AgendaApi, token: String, onBack: () -> Unit) {
+    var pendingCreate by remember { mutableStateOf<Pair<ServiceWriteRequest, String>?>(null) }
     var services by remember { mutableStateOf(emptyList<ServiceView>()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
@@ -240,7 +242,12 @@ internal fun BarberServicesCatalogScreen(api: AgendaApi, token: String, onBack: 
             service = editing,
             saving = saving,
             error = formError,
-            onDismiss = { if (!saving) editorOpen = false },
+            onDismiss = {
+                if (!saving) {
+                    editorOpen = false
+                    pendingCreate = null
+                }
+            },
             onSave = { request ->
                 if (!saving) {
                     saving = true
@@ -249,7 +256,10 @@ internal fun BarberServicesCatalogScreen(api: AgendaApi, token: String, onBack: 
                         try {
                             val current = editing
                             if (current == null) {
-                                api.createService(token, request)
+                                val key = pendingCreate?.takeIf { it.first == request }?.second
+                                    ?: UUID.randomUUID().toString().also { pendingCreate = request to it }
+                                api.createService(token, key, request)
+                                pendingCreate = null
                             } else {
                                 api.updateService(token, current.id, request)
                             }

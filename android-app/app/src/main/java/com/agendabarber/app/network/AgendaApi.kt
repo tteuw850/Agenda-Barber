@@ -254,7 +254,11 @@ interface AgendaApi {
     ): ClientView
 
     @POST("api/v1/clients")
-    suspend fun newClient(@Header("Authorization") bearer: String, @Body request: CreateClient): ClientView
+    suspend fun newClient(
+        @Header("Authorization") bearer: String,
+        @Header("Idempotency-Key") key: String,
+        @Body request: CreateClient
+    ): ClientView
 
     @GET("api/v1/services")
     suspend fun services(
@@ -263,7 +267,11 @@ interface AgendaApi {
     ): List<ServiceView>
 
     @POST("api/v1/services")
-    suspend fun createService(@Header("Authorization") bearer: String, @Body request: ServiceWriteRequest): ServiceView
+    suspend fun createService(
+        @Header("Authorization") bearer: String,
+        @Header("Idempotency-Key") key: String,
+        @Body request: ServiceWriteRequest
+    ): ServiceView
 
     @PATCH("api/v1/services/{id}")
     suspend fun updateService(

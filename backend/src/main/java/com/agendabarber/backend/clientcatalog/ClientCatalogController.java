@@ -1,5 +1,6 @@
 package com.agendabarber.backend.clientcatalog;
 
+import com.agendabarber.backend.common.CreateIdempotencyExecutor;
 import com.agendabarber.backend.common.ReadRetryExecutor;
 import com.agendabarber.backend.clientcatalog.ClientCatalogDtos.ClientInput;
 import com.agendabarber.backend.clientcatalog.ClientCatalogDtos.ClientView;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,10 +30,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class ClientCatalogController {
     private final ClientCatalogService clients;
     private final ReadRetryExecutor retry;
+    private final CreateIdempotencyExecutor idempotency;
 
-    public ClientCatalogController(ClientCatalogService clients, ReadRetryExecutor retry) {
+    public ClientCatalogController(ClientCatalogService clients, ReadRetryExecutor retry,
+            CreateIdempotencyExecutor idempotency) {
         this.clients = clients;
         this.retry = retry;
+        this.idempotency = idempotency;
     }
 
     @GetMapping
@@ -51,8 +56,13 @@ public class ClientCatalogController {
 
     @PostMapping
     public ResponseEntity<ClientView> create(
-            @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody ClientInput input) {
-        ClientView created = clients.create(barberId(jwt), input);
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader(value = "Idempotency-Key", required = false) String key,
+            @Valid @RequestBody ClientInput input) {
+        UUID barber = barberId(jwt);
+        ClientView created = idempotency.run(barber, UUID.fromString(jwt.getSubject()),
+                key, "CLIENT_CREATE", input, () -> clients.create(barber, input),
+                ClientView::id, id -> clients.get(barber, id));
         return ResponseEntity.created(URI.create("/api/v1/clients/" + created.id()))
                 .body(created);
     }
