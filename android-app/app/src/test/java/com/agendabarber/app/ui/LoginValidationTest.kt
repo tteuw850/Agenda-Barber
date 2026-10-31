@@ -5,13 +5,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LoginValidationTest {
-    @Test fun acceptsValidCredentials() {
-        assertTrue(validLoginInput("barbeiro@exemplo.com", "senha123", "https://api.exemplo.com"))
+    @Test fun acceptsUsernameAndPasswordWithoutApiInput() {
+        assertTrue(validLoginInput("ebinho", "ExampleTestPass!"))
+        assertTrue(validLoginInput("Barber_01", "ExampleTestPass!"))
     }
 
-    @Test fun rejectsInvalidFields() {
-        assertFalse(validLoginInput("sem-arroba", "senha", "https://api.exemplo.com"))
-        assertFalse(validLoginInput("barbeiro@exemplo.com", "", "https://api.exemplo.com"))
-        assertFalse(validLoginInput("barbeiro@exemplo.com", "senha", "http://inseguro.com"))
+    @Test fun rejectsInvalidCredentials() {
+        assertFalse(validLoginInput("", "ExampleTestPass!"))
+        assertFalse(validLoginInput("ab", "ExampleTestPass!"))
+        assertFalse(validLoginInput("user@example.com", "ExampleTestPass!"))
+        assertFalse(validLoginInput("usuario com espacos", "ExampleTestPass!"))
+        assertFalse(validLoginInput("ebinho", ""))
     }
 }

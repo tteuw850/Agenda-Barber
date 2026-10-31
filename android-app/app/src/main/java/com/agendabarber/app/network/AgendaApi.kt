@@ -14,7 +14,7 @@ import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
-data class LoginRequest(val email: String, val password: String)
+data class LoginRequest(val username: String, val password: String)
 
 data class LoginResponse(
     val accessToken: String,

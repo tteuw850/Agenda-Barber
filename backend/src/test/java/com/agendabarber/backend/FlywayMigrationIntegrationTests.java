@@ -37,7 +37,7 @@ class FlywayMigrationIntegrationTests {
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration")
                 .load();
-        assertEquals(7, flyway.migrate().migrationsExecuted);
+        assertEquals(8, flyway.migrate().migrationsExecuted);
         assertTrue(flyway.validateWithResult().validationSuccessful);
     }
 
@@ -48,12 +48,29 @@ class FlywayMigrationIntegrationTests {
                         + "WHERE table_schema = 'public' AND table_name IN "
                         + "('users','barbers','clients','services','appointments','blocked_periods',"
                         + "'working_hours','expenses','idempotency_records')"));
-        assertEquals(7, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
+        assertEquals(8, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
         assertEquals(1, count("SELECT count(*) FROM information_schema.tables "
                 + "WHERE table_schema='public' AND table_name='auth_refresh_tokens'"));
         assertEquals(1, count("SELECT count(*) FROM pg_constraint "
                 + "WHERE conname = 'ex_appointments_barber_active_overlap'"));
         flyway.validate();
+    }
+
+    @Test
+    void usernameMigrationRequiresValidUniqueUsernamesAndPreservesExistingAccounts()
+            throws SQLException {
+        Fixture first = fixture();
+        Fixture second = fixture();
+        assertEquals(2, count("SELECT count(*) FROM users WHERE id IN ('"
+                + first.userId() + "','" + second.userId() + "') AND username IS NULL"));
+        execute("UPDATE users SET username='ebinho' WHERE id=?", first.userId());
+        SQLException duplicate = assertThrows(SQLException.class, () ->
+                execute("UPDATE users SET username='ebinho' WHERE id=?", second.userId()));
+        assertEquals("23505", duplicate.getSQLState());
+        SQLException invalid = assertThrows(SQLException.class, () ->
+                execute("UPDATE users SET username='invalid username' WHERE id=?", second.userId()));
+        assertEquals("23514", invalid.getSQLState());
+        assertEquals(1, count("SELECT count(*) FROM users WHERE username='ebinho'"));
     }
 
     @Test
@@ -155,7 +172,7 @@ class FlywayMigrationIntegrationTests {
                 + "WHERE table_schema='public' AND table_name='recurring_blocks'"));
         assertEquals(1, count("SELECT count(*) FROM information_schema.columns "
                 + "WHERE table_name='blocked_periods' AND column_name='notes'"));
-        assertEquals(7, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
+        assertEquals(8, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
     }
 
 

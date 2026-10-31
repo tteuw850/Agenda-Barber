@@ -89,7 +89,7 @@ class AuthSecurityIntegrationTests {
         Flyway flyway = Flyway.configure()
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration").load();
-        assertEquals(7, flyway.migrate().migrationsExecuted);
+        assertEquals(8, flyway.migrate().migrationsExecuted);
         flyway.validate();
     }
 
@@ -124,6 +124,32 @@ class AuthSecurityIntegrationTests {
         assertEquals(a.barber().toString(), mapper.readTree(me.body()).get("barberId").asText());
         assertFalse(me.body().contains(a.email()));
         assertFalse(me.body().contains(PASSWORD));
+    }
+
+    @Test
+    void usernameLoginUsesExistingBarberIdentityAndGenericFailures() throws Exception {
+        Account a = account();
+        String username = "barber_" + a.user().toString().substring(0, 8);
+        update("UPDATE users SET username=? WHERE id=?", username, a.user());
+        String payload = mapper.writeValueAsString(Map.of(
+                "username", username.toUpperCase(java.util.Locale.ROOT), "password", PASSWORD));
+        HttpResponse<String> response = request("POST", "/api/v1/auth/login", payload, null);
+        assertEquals(200, response.statusCode(), response.body());
+        String jwt = mapper.readTree(response.body()).get("accessToken").asText();
+        assertEquals(200, get("/api/v1/auth/me", jwt).statusCode());
+        assertEquals(a.barber().toString(),
+                mapper.readTree(get("/api/v1/auth/me", jwt).body()).get("barberId").asText());
+
+        String badPassword = mapper.writeValueAsString(Map.of(
+                "username", username, "password", "wrong-test-password"));
+        String missingUser = mapper.writeValueAsString(Map.of(
+                "username", "unknown_" + a.user().toString().substring(0, 8),
+                "password", "wrong-test-password"));
+        HttpResponse<String> invalid = request("POST", "/api/v1/auth/login", badPassword, null);
+        HttpResponse<String> unknown = request("POST", "/api/v1/auth/login", missingUser, null);
+        assertEquals(401, invalid.statusCode());
+        assertEquals(401, unknown.statusCode());
+        assertEquals(invalid.body(), unknown.body());
     }
 
     @Test

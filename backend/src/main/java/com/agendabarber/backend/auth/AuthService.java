@@ -29,8 +29,10 @@ public class AuthService {
         dummyHash = encoder.encode(UUID.randomUUID().toString());
     }
 
-    public LoginToken login(String email, String password, String remoteAddress) {
-        String normalized = email.strip().toLowerCase(Locale.ROOT);
+    public LoginToken login(String identifier, String password, String remoteAddress) {
+        String normalized = identifier.strip().toLowerCase(Locale.ROOT);
+        // Keep email-based sign-in compatible with older APKs during rollout.
+        String identifierColumn = normalized.contains("@") ? "email" : "username";
         limiter.check(normalized, remoteAddress);
         UserAccount account = null;
         try {
@@ -38,7 +40,7 @@ public class AuthService {
                     "SELECT u.id, u.password_hash, u.active, u.role::text, "
                             + "u.credential_version, b.id AS barber_id "
                             + "FROM users u LEFT JOIN barbers b ON b.user_id=u.id "
-                            + "WHERE lower(u.email)=?",
+                            + "WHERE lower(u." + identifierColumn + ")=?",
                     (rs, row) -> new UserAccount(
                             rs.getObject("id", UUID.class),
                             rs.getString("password_hash"),

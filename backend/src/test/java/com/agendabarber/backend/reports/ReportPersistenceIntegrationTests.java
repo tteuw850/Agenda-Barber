@@ -35,7 +35,7 @@ class ReportPersistenceIntegrationTests {
                 postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
         Flyway flyway = Flyway.configure().dataSource(data)
                 .locations("classpath:db/migration").load();
-        assertEquals(7, flyway.migrate().migrationsExecuted);
+        assertEquals(8, flyway.migrate().migrationsExecuted);
         flyway.validate();
         jdbc = new JdbcTemplate(data);
         reports = new ReportService(jdbc);
