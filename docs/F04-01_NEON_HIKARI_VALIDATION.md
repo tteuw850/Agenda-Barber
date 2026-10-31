@@ -60,3 +60,12 @@ https://neon.com/docs/manage/endpoints
 - Executar GET autenticado atraves da API Java com o novo HikariCP apos suspensao real do compute e registrar tempo/HTTP/logs sem expor segredos.
 - Conferir metricas JMX do pool na aplicacao com o novo build, sem abrir porta JMX externa.
 - Preparar revisao por PR e autorizacao de deploy DEV separadamente.
+
+## Validacao adicional JMX / pool (31-10-2026)
+- Adicionado NeonHikariRuntimeIntegrationTests com PostgreSQL 17 efemero.
+- Binder aplica as propriedades Hikari do perfil neon e confirma nome, minimo=0, maximo=3, timeout do driver e keepalive=0.
+- Confirma MBean JMX local, conexao SQL SELECT 1, total de conexoes limitado e devolucao da conexao ao pool.
+- Nome JMX exclusivo dentro do teste evita colisao com o pool da suite de autenticacao.
+- mvn -B -ntp verify: BUILD SUCCESS; 68 testes no total, 67 aprovados, 1 ignorado, 0 falhas ou erros.
+- Testes de autenticacao ja exercitam GET autenticado com configuracao neon em banco isolado.
+- Pendente: validar GET autenticado no Neon DEVELOPMENT apos idle com essa versao do backend, sem deploy nao autorizado.
