@@ -80,6 +80,20 @@ public class ScheduleConfigService {
                         rs.getString(4), rs.getString(5)), barberId, utc(to), utc(from));
     }
 
+    @Transactional(readOnly = true)
+    public SingleBlockView getBlock(UUID barberId, UUID id) {
+        List<SingleBlockView> found = jdbc.query(
+                "SELECT id,starts_at,ends_at,reason,notes FROM blocked_periods"
+                        + " WHERE barber_id=? AND id=?",
+                (rs, n) -> new SingleBlockView(rs.getObject(1, UUID.class),
+                        rs.getTimestamp(2).toInstant(), rs.getTimestamp(3).toInstant(),
+                        rs.getString(4), rs.getString(5)), barberId, id);
+        if (found.isEmpty()) {
+            throw new ScheduleNotFoundException();
+        }
+        return found.getFirst();
+    }
+
     @Transactional
     public SingleBlockView createBlock(UUID barberId, SingleBlockInput input) {
         if (!input.endsAt().isAfter(input.startsAt())
@@ -117,6 +131,21 @@ public class ScheduleConfigService {
                         rs.getObject(3, LocalTime.class), rs.getObject(4, LocalTime.class),
                         rs.getObject(5, LocalDate.class), rs.getObject(6, LocalDate.class),
                         rs.getString(7), rs.getString(8)), barberId);
+    }
+
+    @Transactional(readOnly = true)
+    public WeeklyBlockView getRecurring(UUID barberId, UUID id) {
+        List<WeeklyBlockView> found = jdbc.query(
+                "SELECT id,weekday,starts_at,ends_at,valid_from,valid_until,reason,notes"
+                        + " FROM recurring_blocks WHERE barber_id=? AND id=?",
+                (rs, n) -> new WeeklyBlockView(rs.getObject(1, UUID.class), rs.getInt(2),
+                        rs.getObject(3, LocalTime.class), rs.getObject(4, LocalTime.class),
+                        rs.getObject(5, LocalDate.class), rs.getObject(6, LocalDate.class),
+                        rs.getString(7), rs.getString(8)), barberId, id);
+        if (found.isEmpty()) {
+            throw new ScheduleNotFoundException();
+        }
+        return found.getFirst();
     }
 
     @Transactional

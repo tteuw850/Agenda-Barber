@@ -31,3 +31,12 @@ Worktree: D:\appeber-f04-03
 
 ## Safety boundary
 No push, pull request, merge, deployment, AWS or Render changes, migration on Neon, or physical-device installation. F04-03 remains IN PROGRESS.
+
+## Continuation 2026-10-31   scheduled blocks (local commit pending)
+- POST /api/v1/schedule/blocks and POST /api/v1/schedule/recurring-blocks now accept optional Idempotency-Key and use CreateIdempotencyExecutor with operation-specific hashes.
+- Both replay an existing, barber-owned resource via ScheduleConfigService.getBlock/getRecurring and do not insert another row when the same key/payload is submitted again.
+- Android BarberBlockTimeScreen and AgendaApi send UUID idempotency keys. For a retry of an identical request in the same screen instance, the original key is reused. A different payload gets a new key. Successful submissions clear the pending key.
+- BlockIdempotencyIntegrationTests tests both single and recurring block replay, mismatched-payload 409, and cross-operation key rejection with PostgreSQL 17 Testcontainers.
+- Maven focused test: 2 passed, 0 failed. Full mvn -B -ntp verify: BUILD SUCCESS, 84 run, 83 passed, 0 failures/errors, 1 skipped (NeonConnectionSmokeTest), Checkstyle 0. Flyway V1-V7 used only temporary databases.
+- Android Gradle build was not verified here (Gradle wrapper was previously absent and Gradle not on PATH). No APK installation, database migration on Neon, push, PR, merge or deployment.
+- Known limitations remain: missing keys follow legacy code; replay reads current resource and fails if removed, not a persisted HTTP snapshot; other mutation operations and process-restart key retention still require work.

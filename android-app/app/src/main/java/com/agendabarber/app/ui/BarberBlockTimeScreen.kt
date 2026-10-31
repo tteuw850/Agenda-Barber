@@ -58,6 +58,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
@@ -99,6 +100,7 @@ internal fun BarberBlockTimeScreen(api: AgendaApi, token: String, onBack: () -> 
     var picker by remember { mutableStateOf<BlockDateTarget?>(null) }
     var reasonMenu by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
+    var pendingSubmission by remember { mutableStateOf<Pair<Any, String>?>(null) }
     var message by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     var listError by remember { mutableStateOf("") }
@@ -258,22 +260,30 @@ internal fun BarberBlockTimeScreen(api: AgendaApi, token: String, onBack: () -> 
                 contentColor = BarberOnGold
             ),
             onClick = {
+                val single = if (mode == BlockMode.SINGLE) {
+                    oneTimeBlockPayload(date, startsAt, endsAt, reason, notes)
+                } else {
+                    null
+                }
+                val recurring = if (mode == BlockMode.RECURRING) {
+                    recurringBlockPayload(date, startsAt, endsAt, validUntil, reason, notes)
+                } else {
+                    null
+                }
+                val payload = checkNotNull(single ?: recurring)
+                val key = pendingSubmission?.takeIf { it.first == payload }?.second
+                    ?: UUID.randomUUID().toString().also { pendingSubmission = payload to it }
                 saving = true
                 error = ""
                 message = ""
                 scope.launch {
                     try {
-                        if (mode == BlockMode.SINGLE) {
-                            api.createBlock(
-                                token,
-                                oneTimeBlockPayload(date, startsAt, endsAt, reason, notes)
-                            )
+                        if (single != null) {
+                            api.createBlock(token, key, single)
                         } else {
-                            api.addWeekly(
-                                token,
-                                recurringBlockPayload(date, startsAt, endsAt, validUntil, reason, notes)
-                            )
+                            api.addWeekly(token, key, checkNotNull(recurring))
                         }
+                        pendingSubmission = null
                         message = "Bloqueio confirmado."
                         revision++
                     } catch (failure: Exception) {
