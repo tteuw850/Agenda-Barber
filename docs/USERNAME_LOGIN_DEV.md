@@ -25,14 +25,22 @@ predefinido no APK.
 ## Provisionamento da conta solicitada — EXCLUSIVAMENTE Neon development
 A solicitação é para associar o username `ebinho` à conta atual do
 barbeiro, preservando os IDs, clientes, agenda, serviços e despesas.
+
+**Atenção operacional:** o perfil `neon` usa `spring.flyway.enabled=false`.
+O workflow de CD AWS troca a imagem da API mas **não aplica Flyway V8**.
+Antes do deploy, aplicar V8 de modo controlado com o migrador do Neon
+DEVELOPMENT e conferir `flyway_schema_history` versão 8. Não presumir
+que a API consegue criar ou alterar tabelas usando a role runtime.
 É necessário configurar a senha solicitada pelo usuário, usando
 **somente o hash BCrypt (custo 12)**, e nunca a senha bruta em SQL,
 migrações, logs, prints, workflows, commits ou no Trello.
 
 **NÃO executar antes de:** (a) CI Java+Android passar, (b) integrar
-a PR com V8, (c) executar e validar o deploy DEV e a migração V8,
-(d) confirmar no Neon que existe exatamente um usuário BARBER e
-que esse usuário é o pretendido.
+a PR com V8, (c) aplicar a migracao V8 **separadamente, SOMENTE no Neon
+ development**, usando credencial migradora e Flyway para registrar
+ checksum/historico, (d) executar e validar o deploy AWS DEV,
+ (e) confirmar que existe exatamente um usuario BARBER e
+ que esse usuario e o pretendido.
 
 Atualização administrativa esperada (somente com um hash produzido
 localmente e fornecido como parâmetro seguro ao SQL):
