@@ -1,0 +1,70 @@
+name: AWS DEV OIDC - read-only identity test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+
+concurrency:
+  group: agenda-barber-dev-oidc-smoke
+  cancel-in-progress: false
+
+jobs:
+  verify-oidc:
+    name: Validate AWS IAM role and SSM visibility (no deployment)
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: development
+    timeout-minutes: 8
+    steps:
+      - name: Validate repository, branch and role variable
+        shell: bash
+        env:
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'tteuw850/Agenda-Barber'
+          test "$GITHUB_REF" = 'refs/heads/main'
+          test "$AWS_ROLE_ARN" = 'arn:aws:iam::916949393497:role/AgendaBarber-GitHub-SSM-DEV-Role'
+
+      - name: Obtain temporary AWS credentials via GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-east-2
+          role-session-name: AgendaBarberOIDCSmoke
+          role-duration-seconds: 900
+          mask-aws-account-id: true
+
+      - name: Verify expected role without printing credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          arn="$(aws sts get-caller-identity --query Arn --output text)"
+          case "$arn" in
+            arn:aws:sts::916949393497:assumed-role/AgendaBarber-GitHub-SSM-DEV-Role/*)
+              echo 'OIDC SUCCESS: correct development IAM role assumed.'
+              ;;
+            *)
+              echo '::error::Unexpected AWS identity.'
+              exit 1
+              ;;
+          esac
+
+      - name: Verify AWS Systems Manager can read the development node
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(aws ssm describe-instance-information \
+            --filters Key=InstanceIds,Values=i-02063104b98a730db \
+            --query 'InstanceInformationList[0].PingStatus' --output text)"
+          if [[ "$status" != Online ]]; then
+            echo "::error::SSM managed node is not online or permission is missing."
+            exit 1
+          fi
+          echo 'SSM SUCCESS: development EC2 managed node is online.'
+
+      - name: Confirmation
+        run: echo 'Read-only AWS OIDC test finished. No deploy, SSM command or EC2 change.'
