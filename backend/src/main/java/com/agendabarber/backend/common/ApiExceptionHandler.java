@@ -164,7 +164,8 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler({CannotCreateTransactionException.class,
                        DataAccessResourceFailureException.class,
-                       TransientDataAccessException.class})
+                       TransientDataAccessException.class,
+                       ReadRetryExecutor.UnavailableAfterRetries.class})
     ResponseEntity<ProblemDetail> unavailableDatabase(RuntimeException ignored) {
         String sqlState = "unknown";
         for (Throwable cause = ignored; cause != null; cause = cause.getCause()) {
@@ -177,8 +178,14 @@ public class ApiExceptionHandler {
                 ignored.getClass().getSimpleName(), sqlState);
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .header(HttpHeaders.RETRY_AFTER, "5")
-                .body(problemBody(HttpStatus.SERVICE_UNAVAILABLE,
-                        "Service unavailable", "Storage temporarily unavailable."));
+                .body(unavailableBody());
+    }
+
+    private ProblemDetail unavailableBody() {
+        ProblemDetail body = problemBody(HttpStatus.SERVICE_UNAVAILABLE,
+                "Service unavailable", "Storage temporarily unavailable.");
+        body.setProperty("code", "DB_TEMPORARILY_UNAVAILABLE");
+        return body;
     }
 
     private ProblemDetail problemBody(HttpStatus status, String title, String detail) {

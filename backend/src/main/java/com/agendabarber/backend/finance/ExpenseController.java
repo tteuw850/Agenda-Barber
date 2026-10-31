@@ -1,5 +1,6 @@
 package com.agendabarber.backend.finance;
 
+import com.agendabarber.backend.common.ReadRetryExecutor;
 import com.agendabarber.backend.finance.ExpenseDtos.ExpenseInput;
 import com.agendabarber.backend.finance.ExpenseDtos.ExpenseView;
 import jakarta.validation.Valid;
@@ -28,9 +29,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/expenses")
 public class ExpenseController {
     private final ExpenseService expenses;
+    private final ReadRetryExecutor retry;
 
-    public ExpenseController(ExpenseService expenses) {
+    public ExpenseController(ExpenseService expenses, ReadRetryExecutor retry) {
         this.expenses = expenses;
+        this.retry = retry;
     }
 
     @GetMapping
@@ -39,12 +42,12 @@ public class ExpenseController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(defaultValue = "100") int limit,
             @RequestParam(defaultValue = "0") int offset) {
-        return expenses.list(barber(jwt), from, to, limit, offset);
+        return retry.run(() -> expenses.list(barber(jwt), from, to, limit, offset));
     }
 
     @GetMapping("/{id}")
     public ExpenseView get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
-        return expenses.get(barber(jwt), id);
+        return retry.run(() -> expenses.get(barber(jwt), id));
     }
 
     @PostMapping

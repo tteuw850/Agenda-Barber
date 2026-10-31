@@ -1,5 +1,6 @@
 package com.agendabarber.backend.clientcatalog;
 
+import com.agendabarber.backend.common.ReadRetryExecutor;
 import com.agendabarber.backend.clientcatalog.ClientCatalogDtos.ClientInput;
 import com.agendabarber.backend.clientcatalog.ClientCatalogDtos.ClientView;
 import java.util.Map;
@@ -26,9 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/clients")
 public class ClientCatalogController {
     private final ClientCatalogService clients;
+    private final ReadRetryExecutor retry;
 
-    public ClientCatalogController(ClientCatalogService clients) {
+    public ClientCatalogController(ClientCatalogService clients, ReadRetryExecutor retry) {
         this.clients = clients;
+        this.retry = retry;
     }
 
     @GetMapping
@@ -38,12 +41,12 @@ public class ClientCatalogController {
             @RequestParam(defaultValue = "all") String filter,
             @RequestParam(defaultValue = "50") int limit,
             @RequestParam(defaultValue = "0") int offset) {
-        return clients.list(barberId(jwt), search, filter, limit, offset);
+        return retry.run(() -> clients.list(barberId(jwt), search, filter, limit, offset));
     }
 
     @GetMapping("/{id}")
     public ClientView get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
-        return clients.get(barberId(jwt), id);
+        return retry.run(() -> clients.get(barberId(jwt), id));
     }
 
     @PostMapping

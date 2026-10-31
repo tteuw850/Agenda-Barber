@@ -1,5 +1,6 @@
 package com.agendabarber.backend.servicecatalog;
 
+import com.agendabarber.backend.common.ReadRetryExecutor;
 import com.agendabarber.backend.servicecatalog.ServiceCatalogDtos.CreateService;
 import com.agendabarber.backend.servicecatalog.ServiceCatalogDtos.ServiceView;
 import com.agendabarber.backend.servicecatalog.ServiceCatalogDtos.UpdateService;
@@ -26,20 +27,22 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/services")
 public class ServiceCatalogController {
     private final ServiceCatalogService catalog;
+    private final ReadRetryExecutor retry;
 
-    public ServiceCatalogController(ServiceCatalogService catalog) {
+    public ServiceCatalogController(ServiceCatalogService catalog, ReadRetryExecutor retry) {
         this.catalog = catalog;
+        this.retry = retry;
     }
 
     @GetMapping
     public List<ServiceView> list(@AuthenticationPrincipal Jwt jwt,
                                   @RequestParam(defaultValue = "false") boolean activeOnly) {
-        return catalog.list(barberId(jwt), activeOnly);
+        return retry.run(() -> catalog.list(barberId(jwt), activeOnly));
     }
 
     @GetMapping("/{id}")
     public ServiceView get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
-        return catalog.get(barberId(jwt), id);
+        return retry.run(() -> catalog.get(barberId(jwt), id));
     }
 
     @PostMapping

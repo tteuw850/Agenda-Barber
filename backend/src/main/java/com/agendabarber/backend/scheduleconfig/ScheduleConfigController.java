@@ -1,5 +1,6 @@
 package com.agendabarber.backend.scheduleconfig;
 
+import com.agendabarber.backend.common.ReadRetryExecutor;
 import com.agendabarber.backend.scheduleconfig.ScheduleDtos.FreeSlot;
 import com.agendabarber.backend.scheduleconfig.ScheduleDtos.SingleBlockInput;
 import com.agendabarber.backend.scheduleconfig.ScheduleDtos.SingleBlockView;
@@ -32,14 +33,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/schedule")
 public class ScheduleConfigController {
     private final ScheduleConfigService schedule;
+    private final ReadRetryExecutor retry;
 
-    public ScheduleConfigController(ScheduleConfigService schedule) {
+    public ScheduleConfigController(ScheduleConfigService schedule, ReadRetryExecutor retry) {
         this.schedule = schedule;
+        this.retry = retry;
     }
 
     @GetMapping("/working-hours")
     public List<WorkingHoursView> workingHours(@AuthenticationPrincipal Jwt jwt) {
-        return schedule.workingHours(barberId(jwt));
+        return retry.run(() -> schedule.workingHours(barberId(jwt)));
     }
 
     @PutMapping("/working-hours/{weekday}")
@@ -52,7 +55,7 @@ public class ScheduleConfigController {
     @GetMapping("/blocks")
     public List<SingleBlockView> blocks(@AuthenticationPrincipal Jwt jwt,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return schedule.blocks(barberId(jwt), date);
+        return retry.run(() -> schedule.blocks(barberId(jwt), date));
     }
 
     @PostMapping("/blocks")
@@ -71,7 +74,7 @@ public class ScheduleConfigController {
 
     @GetMapping("/recurring-blocks")
     public List<WeeklyBlockView> recurring(@AuthenticationPrincipal Jwt jwt) {
-        return schedule.recurring(barberId(jwt));
+        return retry.run(() -> schedule.recurring(barberId(jwt)));
     }
 
     @PostMapping("/recurring-blocks")
@@ -93,7 +96,7 @@ public class ScheduleConfigController {
     public List<FreeSlot> availableSlots(@AuthenticationPrincipal Jwt jwt,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam UUID serviceId) {
-        return schedule.availableSlots(barberId(jwt), date, serviceId);
+        return retry.run(() -> schedule.availableSlots(barberId(jwt), date, serviceId));
     }
 
     private static UUID barberId(Jwt jwt) {
