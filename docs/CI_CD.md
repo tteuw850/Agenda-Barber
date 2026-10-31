@@ -55,26 +55,25 @@ The Render connector does not support deleting services. Confirm
 deletion separately in Render dashboard Settings. Until then do not
 claim the Render resource has been deleted or billing terminated.
 
-## GitHub Actions AWS CD — migracao OIDC + S3 + SSM
+## GitHub Actions AWS CD — OIDC + tunel privado SSM (SEM S3)
 
-O workflow manual anterior por SSH falhou porque a regra do Security Group
-libera TCP/22 somente para o IP residencial. O teste GitHub OIDC com
-credenciais temporarias e leitura do SSM (PR #27) passou.
+O fluxo atual por SSH publico falhou porque o Security Group libera TCP/22
+apenas ao IP residencial. O teste OIDC de leitura do SSM teve sucesso.
 
-O novo workflow esta preparado numa PR separada, **ainda nao ativado**:
-- autenticacao OIDC com `AWS_ROLE_ARN` restrita a `development`;
-- build Maven + Docker no runner GitHub, evitando carga na EC2 pequena;
-- envio da imagem e scripts para bucket S3 privado, por hash do commit;
-- SSM `AWS-RunRemoteScript` na instancia EC2 de desenvolvimento;
-- validacao SHA-256 da imagem, Docker Compose e rollback existente;
-- verificacao HTTPS da API, sem deploy automatico por push ou merge.
+A nova PR em rascunho entrega a imagem diretamente a EC2, sem bucket S3:
+- somente workflow_dispatch da main com DEPLOY_AWS_DEV;
+- testes Java e Docker build no GitHub-hosted runner;
+- AWS OIDC com credenciais temporarias;
+- Session Manager plugin abre tunel privado 127.0.0.1:2222 -> EC2:22;
+- SCP sobre tunel com chave SSH de deploy e host key ja configuradas;
+- Docker Compose na EC2 e rollback existente, com health checks HTTPS;
+- nenhuma nova porta publica, nenhum bucket S3, ECR, GHCR ou runner local.
 
-**Pre-requisitos e policies de IAM:** veja
-[docs/AWS_SSM_CD_SETUP.md](AWS_SSM_CD_SETUP.md).
+**Prerequisito obrigatorio:** ampliar a policy de permissoes da funcao
+AgendaBarber-GitHub-SSM-DEV-Role APENAS para iniciar sessao SSM com
+AWS-StartPortForwardingSession na EC2 development e abrir o canal.
+Ver passos, JSON de IAM e testes em [AWS_SSM_TUNNEL_CD.md](AWS_SSM_TUNNEL_CD.md).
 
-Antes da primeira execucao: criar o bucket, anexar permissoes minimas
-a funcao OIDC e a funcao EC2, cadastrar `AWS_DEV_RELEASE_BUCKET` no
-Environment `development` e testar leitura via SSM. Ate a validacao
-deste fluxo, nao apagar credenciais antigas nem alegar CD concluido.
-O workflow somente tem efeito ao executar manualmente
-`DEPLOY_AWS_DEV` na branch `main`.
+Nao utilizar workflow de CD enquanto a PR estiver em rascunho.
+Quando integrar, um merge sozinho NAO dispara deploy. O primeiro teste
+sera manual e controlado, preservando Neon production e rollback.
