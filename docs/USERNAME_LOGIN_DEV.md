@@ -22,6 +22,19 @@ com o hash BCrypt existente na tabela `users`; JWT, refresh, revogação
 e limites de tentativas permanecem habilitados. Nunca há senha ou token
 predefinido no APK.
 
+## Situação do Neon DEV em 31/10/2026
+- A coluna opcional `username` e as restrições/índice foram aplicados
+  por role migradora com SQL equivalente à V8 **somente no branch development**.
+- O username `ebinho` foi associado ao único barbeiro existente (1 linha).
+- A senha ainda NÃO foi alterada: a operação administrativa de atualização
+  de hash foi bloqueada pela ferramenta. Não considerar as credenciais novas
+  ativas até provisionamento seguro e verificação HTTP 200.
+- `flyway_schema_history` ainda está na versão 7. A V8 foi deliberadamente
+  escrita de modo idempotente para que uma execução posterior do Flyway
+  marque a migração oficialmente sem recriar coluna/índice/constraint.
+  Não marcar a V8 no histórico manualmente.
+- Nenhum acesso ao Neon production e nenhum deploy foi realizado nesta etapa.
+
 ## Provisionamento da conta solicitada — EXCLUSIVAMENTE Neon development
 A solicitação é para associar o username `ebinho` à conta atual do
 barbeiro, preservando os IDs, clientes, agenda, serviços e despesas.
