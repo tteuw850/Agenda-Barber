@@ -1,8 +1,8 @@
 package com.agendabarber.backend.auth;
 
 import jakarta.servlet.http.HttpServletRequest;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.util.UUID;
@@ -31,7 +31,7 @@ public class AuthController {
     @PostMapping("/login")
     public AuthService.LoginToken login(@Valid @RequestBody LoginRequest request,
                                         HttpServletRequest servletRequest) {
-        return service.login(request.email(), request.password(), servletRequest.getRemoteAddr());
+        return service.login(request.username(), request.password(), servletRequest.getRemoteAddr());
     }
 
     @PostMapping("/refresh")
@@ -53,7 +53,7 @@ public class AuthController {
                 jwt.getClaimAsString("role"));
     }
 
-    public record LoginRequest(@NotBlank @Email @Size(max = 254) String email,
+    public record LoginRequest(@JsonAlias("email") @NotBlank @Size(max = 254) String username,
                                @NotBlank String password) {
     }
 
