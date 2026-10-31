@@ -69,3 +69,12 @@ https://neon.com/docs/manage/endpoints
 - mvn -B -ntp verify: BUILD SUCCESS; 68 testes no total, 67 aprovados, 1 ignorado, 0 falhas ou erros.
 - Testes de autenticacao ja exercitam GET autenticado com configuracao neon em banco isolado.
 - Pendente: validar GET autenticado no Neon DEVELOPMENT apos idle com essa versao do backend, sem deploy nao autorizado.
+
+## Resiliencia de conexao interrompida (31/10/2026)
+- Em PostgreSQL 17 descartavel do Testcontainers, o teste identificou o PID da sessao ociosa do Hikari e executou pg_terminate_backend nesse PID.
+- A operacao sobre a sessao interrompida pode falhar com SQLSTATE 57P01. O Hikari marca a conexao como quebrada e a descarta; nao faz replay de comandos SQL.
+- Uma nova tentativa de leitura SELECT 1, usando pool.getConnection() novamente, obteve conexao funcional. O pool continuou com no maximo 3 conexoes e 0 emprestadas.
+- Esse teste simula perda de sessao, nao prova automaticamente recuperacao de chamada HTTP nem suspend/resume real Neon. O retry automatico limitado de GET pertence a F04-02.
+- Execucao final: mvn -B -ntp verify = BUILD SUCCESS; 68 testes, 67 aprovados, 1 ignorado, 0 falhas, 0 erros; Checkstyle 0 violacoes.
+- Tentativa de smoke JDBC direto com credenciais foi bloqueada pelas configuracoes da ferramenta. Nao contornar, nao transportar segredos e nao alegar teste HTTP contra o Neon DEV.
+- Proximo aceite: GET autenticado contra Neon DEVELOPMENT com o novo backend em ambiente autorizado; conferir certificado TLS e logs do primeiro request apos idle.

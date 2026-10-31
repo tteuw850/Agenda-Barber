@@ -61,6 +61,42 @@ class NeonHikariRuntimeIntegrationTests {
             }
             assertEquals(0, pool.getHikariPoolMXBean().getActiveConnections());
             assertTrue(pool.getHikariPoolMXBean().getTotalConnections() <= 3);
+            int backendPid;
+            try (var connection = pool.getConnection();
+                    var statement = connection.createStatement();
+                    var result = statement.executeQuery("SELECT pg_backend_pid()")) {
+                assertTrue(result.next());
+                backendPid = result.getInt(1);
+            }
+            try (var admin = java.sql.DriverManager.getConnection(
+                    postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+                    var terminate = admin.prepareStatement("SELECT pg_terminate_backend(?)")) {
+                terminate.setInt(1, backendPid);
+                try (var result = terminate.executeQuery()) {
+                    assertTrue(result.next());
+                    assertTrue(result.getBoolean(1));
+                }
+            }
+            try (var connection = pool.getConnection();
+                    var statement = connection.createStatement();
+                    var result = statement.executeQuery("SELECT 1")) {
+                assertTrue(result.next());
+                assertEquals(1, result.getInt(1));
+            } catch (java.sql.SQLException connectionLost) {
+                // A failed in-flight query is not retried by the connection pool.
+                assertTrue(connectionLost.getSQLState().startsWith("08")
+                        || "57P01".equals(connectionLost.getSQLState()));
+            }
+            // A subsequent fresh read succeeds after Hikari evicts the broken session.
+            try (var recovered = pool.getConnection();
+                    var statement = recovered.createStatement();
+                    var result = statement.executeQuery("SELECT 1")) {
+                assertTrue(result.next());
+                assertEquals(1, result.getInt(1));
+            }
+            assertEquals(0, pool.getHikariPoolMXBean().getActiveConnections());
+            assertTrue(pool.getHikariPoolMXBean().getTotalConnections() <= 3);
+
         }
     }
 }
