@@ -1,10 +1,10 @@
-name: CD - AWS EC2 DEV via OIDC + S3 + SSM (manual)
+name: CD - AWS EC2 DEV via OIDC and private SSM tunnel (manual)
 
 on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: Type DEPLOY_AWS_DEV to deploy only to the development EC2
+        description: Type DEPLOY_AWS_DEV to release exclusively on development EC2
         required: true
         type: string
 
@@ -18,11 +18,11 @@ concurrency:
 
 jobs:
   authorize:
-    name: Require main branch and explicit approval
+    name: Require main branch and explicit confirmation
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Validate target and confirmation
+      - name: Check deployment authorization
         shell: bash
         env:
           CONFIRMATION: ${{ inputs.confirmation }}
@@ -33,18 +33,17 @@ jobs:
           test "$CONFIRMATION" = "DEPLOY_AWS_DEV"
 
   deploy:
-    name: Build on runner; deliver through private S3 and SSM
+    name: Build off-host; deliver directly to EC2 over SSM tunnel
     needs: authorize
     runs-on: ubuntu-latest
     timeout-minutes: 65
     environment:
       name: development
     env:
-      AWS_BASE_URL: ${{ vars.AWS_DEV_BASE_URL }}
-      AWS_RELEASE_BUCKET: ${{ vars.AWS_DEV_RELEASE_BUCKET }}
-      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
       AWS_REGION: us-east-2
       EC2_ID: i-02063104b98a730db
+      AWS_BASE_URL: ${{ vars.AWS_DEV_BASE_URL }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -57,15 +56,14 @@ jobs:
           cache: maven
           cache-dependency-path: backend/pom.xml
 
-      - name: Validate exclusive AWS development destination
+      - name: Check AWS development destination
         shell: bash
         run: |
           set -euo pipefail
-          test "$AWS_ROLE_ARN" = "arn:aws:iam::916949393497:role/AgendaBarber-GitHub-SSM-DEV-Role"
-          [[ "$AWS_RELEASE_BUCKET" =~ ^agenda-barber-dev-releases-916949393497(-[a-z0-9-]+)?$ ]]
-          test "$AWS_BASE_URL" = "https://18-216-115-216.sslip.io"
+          test "$AWS_ROLE_ARN" = 'arn:aws:iam::916949393497:role/AgendaBarber-GitHub-SSM-DEV-Role'
+          test "$AWS_BASE_URL" = 'https://18-216-115-216.sslip.io'
 
-      - name: Verify Java tests and Checkstyle
+      - name: Verify backend tests and Checkstyle
         run: mvn -B -ntp -f backend/pom.xml verify
 
       - name: Build versioned Docker image on GitHub runner
@@ -76,9 +74,9 @@ jobs:
           image="agenda-barber-dev:aws-$short"
           docker build --file backend/Dockerfile --tag "$image" backend
           docker save "$image" | gzip -1 > "$RUNNER_TEMP/agenda-barber-image.tar.gz"
-          sha256sum "$RUNNER_TEMP/agenda-barber-image.tar.gz" | cut -d ' ' -f 1 > "$RUNNER_TEMP/image-sha256"
+          test -s "$RUNNER_TEMP/agenda-barber-image.tar.gz"
 
-      - name: Assume temporary AWS deployment role via OIDC
+      - name: Obtain temporary AWS permissions via OIDC
         uses: aws-actions/configure-aws-credentials@v6.3.0
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
@@ -87,75 +85,102 @@ jobs:
           role-duration-seconds: 3600
           mask-aws-account-id: true
 
-      - name: Upload versioned artifacts to private S3
+      - name: Install official AWS Session Manager plugin
         shell: bash
         run: |
           set -euo pipefail
-          short="$(printf '%s' "$GITHUB_SHA" | cut -c1-7)"
-          prefix="s3://$AWS_RELEASE_BUCKET/releases/$short"
-          aws s3 cp "$RUNNER_TEMP/agenda-barber-image.tar.gz" "$prefix/agenda-barber-image.tar.gz" --sse AES256 --only-show-errors
-          aws s3 cp scripts/deploy/aws-ec2-release.sh "$prefix/aws-ec2-release.sh" --sse AES256 --only-show-errors
-          aws s3 cp scripts/deploy/aws-ec2-release-ssm.sh "$prefix/aws-ec2-release-ssm.sh" --sse AES256 --only-show-errors
-          echo "Artifacts uploaded to private S3 release prefix for $short."
+          curl --fail --silent --show-error --location --retry 3 \
+            'https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb' \
+            --output "$RUNNER_TEMP/session-manager-plugin.deb"
+          sudo dpkg --install "$RUNNER_TEMP/session-manager-plugin.deb"
+          session-manager-plugin --version
 
-      - name: Run native SSM remote script on the single development EC2
+      - name: Configure existing dedicated SSH key and pinned EC2 host key
         shell: bash
+        env:
+          DEPLOY_KEY: ${{ secrets.AWS_DEV_SSH_PRIVATE_KEY }}
+          PINNED_HOSTS: ${{ secrets.AWS_DEV_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          short="$(printf '%s' "$GITHUB_SHA" | cut -c1-7)"
-          digest="$(cat "$RUNNER_TEMP/image-sha256")"
-          export short digest
-          python3 - <<'PY'
-          import json, os
-          bucket = os.environ["AWS_RELEASE_BUCKET"]
-          short = os.environ["short"]
-          digest = os.environ["digest"]
-          source = {"path": f"https://{bucket}.s3.us-east-2.amazonaws.com/releases/{short}/"}
-          params = {
-              "sourceType": ["S3"],
-              "sourceInfo": [json.dumps(source, separators=(",", ":"))],
-              "commandLine": [f"bash aws-ec2-release-ssm.sh {short} {digest}"],
-              "executionTimeout": ["1800"]
-          }
-          with open(os.environ["RUNNER_TEMP"] + "/ssm-parameters.json", "w") as f:
-              json.dump(params, f)
-          PY
-          command_id="$(aws ssm send-command \
-            --region "$AWS_REGION" \
-            --instance-ids "$EC2_ID" \
-            --document-name AWS-RunRemoteScript \
-            --comment "Agenda Barber AWS DEV release $short" \
-            --parameters "file://$RUNNER_TEMP/ssm-parameters.json" \
-            --timeout-seconds 1800 --max-concurrency 1 --max-errors 0 \
-            --query Command.CommandId --output text)"
-          echo "SSM command ID: $command_id"
-          success=0
-          for attempt in $(seq 1 150); do
-            status="$(aws ssm get-command-invocation --command-id "$command_id" \
-              --instance-id "$EC2_ID" --query Status --output text 2>/dev/null || echo Pending)"
-            case "$status" in
-              Success)
-                success=1; break;;
-              Pending|InProgress|Delayed|Cancelling)
-                sleep 10;;
-              *)
-                echo "::error::SSM deployment failed. Command $command_id; status=$status."
-                exit 1;;
-            esac
-          done
-          if test "$success" != 1; then
-            echo "::error::SSM deployment timed out. Check command $command_id in Systems Manager."
+          if [[ -z "$DEPLOY_KEY" || -z "$PINNED_HOSTS" ]]; then
+            echo '::error::Existing dedicated SSH secrets are missing in development environment.'
             exit 1
           fi
-          echo "SSM deployment completed successfully: $command_id"
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/aws_deploy"
+          chmod 600 "$HOME/.ssh/aws_deploy"
+          printf '%s\n' "$PINNED_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -F '18.216.115.216' -f "$HOME/.ssh/known_hosts" > /dev/null
 
-      - name: Validate public HTTPS and protected endpoints
+      - name: Open temporary SSM tunnel to EC2 local SSH port
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws ssm start-session \
+            --target "$EC2_ID" \
+            --document-name AWS-StartPortForwardingSession \
+            --parameters '{"portNumber":["22"],"localPortNumber":["2222"]}' \
+            > "$RUNNER_TEMP/ssm-tunnel.log" 2>&1 &
+          tunnel_pid=$!
+          echo "SSM_TUNNEL_PID=$tunnel_pid" >> "$GITHUB_ENV"
+          ready=0
+          for attempt in $(seq 1 60); do
+            if ! kill -0 "$tunnel_pid" 2>/dev/null; then
+              echo '::error::SSM tunnel exited before opening port.'
+              exit 1
+            fi
+            if (echo > /dev/tcp/127.0.0.1/2222) >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = 1 || { echo '::error::SSM tunnel not ready.'; exit 1; }
+          echo 'SSM tunnel listening on loopback; EC2 inbound SSH does not need to be public.'
+
+      - name: Transfer image and rollback script directly to EC2 through tunnel
+        shell: bash
+        run: |
+          set -euo pipefail
+          short="$(printf '%s' "$GITHUB_SHA" | cut -c1-7)"
+          ssh_opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes
+                    -o HostKeyAlias=18.216.115.216
+                    -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+                    -o ConnectTimeout=20 -i "$HOME/.ssh/aws_deploy")
+          scp -P 2222 "${ssh_opts[@]}" "$RUNNER_TEMP/agenda-barber-image.tar.gz" \
+            "ubuntu@127.0.0.1:/tmp/agenda-barber-$short.tar.gz"
+          scp -P 2222 "${ssh_opts[@]}" scripts/deploy/aws-ec2-release.sh \
+            "ubuntu@127.0.0.1:/tmp/agenda-barber-release-$short.sh"
+
+      - name: Deploy with existing health-checked rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          short="$(printf '%s' "$GITHUB_SHA" | cut -c1-7)"
+          ssh -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o HostKeyAlias=18.216.115.216 \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ConnectTimeout=20 -i "$HOME/.ssh/aws_deploy" \
+            ubuntu@127.0.0.1 "bash /tmp/agenda-barber-release-$short.sh $short"
+
+      - name: Confirm AWS HTTPS health and protected route
         shell: bash
         run: |
           set -euo pipefail
           base="${AWS_BASE_URL%/}"
-          response="$(curl -fsS --connect-timeout 10 --max-time 30 "$base/actuator/health")"
+          response="$(curl --fail --silent --show-error --connect-timeout 10 --max-time 30 "$base/actuator/health")"
           printf '%s' "$response" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"'
-          unauth="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$base/api/v1/clients")"
+          unauth="$(curl --silent --show-error -o /dev/null -w '%{http_code}' \
+            --max-time 20 "$base/api/v1/clients")"
           test "$unauth" = 401
-          echo "AWS DEV HTTP 200 UP; protected API 401 without credentials."
+          echo 'EC2 release healthy through public TLS; protected API returns 401.'
+
+      - name: Tear down SSM tunnel and remove temporary private key
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${SSM_TUNNEL_PID:-}" ]]; then
+            kill "$SSM_TUNNEL_PID" 2>/dev/null || true
+          fi
+          rm -f "$HOME/.ssh/aws_deploy"
