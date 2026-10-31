@@ -17,7 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCut
-import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
@@ -45,6 +45,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import com.agendabarber.app.BuildConfig
 import com.agendabarber.app.R
 import com.agendabarber.app.network.AgendaApiFactory
 import com.agendabarber.app.network.LoginRequest
@@ -57,21 +58,18 @@ import com.agendabarber.app.ui.theme.BarberOnGold
 import com.agendabarber.app.ui.theme.BarberScheduled
 import kotlinx.coroutines.launch
 
-internal fun validLoginInput(email: String, password: String, url: String): Boolean =
-    email.trim().matches(Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) &&
-        password.isNotBlank() &&
-        url.trim().startsWith("https://", true)
+internal fun validLoginInput(username: String, password: String): Boolean =
+    username.trim().matches(Regex("^[A-Za-z][A-Za-z0-9._-]{2,39}$")) && password.isNotBlank()
 
 @Composable
 fun AgendaApp() {
-    var url by remember { mutableStateOf("https://18-216-115-216.sslip.io/") }
-    var email by remember { mutableStateOf("") }
+    val apiUrl = BuildConfig.API_BASE_URL
+    var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var token by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var showPassword by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(false) }
     var recoveryNotice by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val currentToken = token
@@ -120,23 +118,13 @@ fun AgendaApp() {
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
                 Spacer(Modifier.height(16.dp))
-                if (showSettings) {
-                    OutlinedTextField(
-                        value = url,
-                        onValueChange = { url = it },
-                        label = { Text("Endereço HTTPS da API") },
-                        enabled = !busy,
-                        placeholder = { Text("https://api.exemplo.com/") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
                 OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("E-mail") },
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("Nome de usuário") },
                     enabled = !busy,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    leadingIcon = { Icon(Icons.Outlined.Email, null) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                    leadingIcon = { Icon(Icons.Outlined.Person, null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -166,12 +154,9 @@ fun AgendaApp() {
                     recoveryNotice = !recoveryNotice
                 }) { Text("Esqueci minha senha", color = BarberGold) }
                 if (recoveryNotice) Text("Recuperação indisponível. Contate o administrador.")
-                TextButton(enabled = !busy, onClick = {
-                    showSettings = !showSettings
-                }) { Text("API HTTPS", color = BarberGold) }
                 if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
                 Button(
-                    enabled = !busy && validLoginInput(email, password, url),
+                    enabled = !busy && validLoginInput(username, password),
                     colors = ButtonDefaults.buttonColors(containerColor = BarberGold, contentColor = BarberOnGold),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth(),
@@ -179,14 +164,14 @@ fun AgendaApp() {
                         busy = true
                         scope.launch {
                             try {
-                                val client = AgendaApiFactory.create(url)
-                                val response = client.login(LoginRequest(email.trim(), password))
+                                val client = AgendaApiFactory.create(apiUrl)
+                                val response = client.login(LoginRequest(username.trim().lowercase(), password))
                                 require(response.accessToken.isNotBlank()) { "Token de acesso vazio" }
                                 token = "Bearer " + response.accessToken
                                 password = ""
                                 error = ""
                             } catch (e: IllegalArgumentException) {
-                                error = "Informe um endereço HTTPS válido."
+                                error = "Não foi possível conectar à API segura."
                             } catch (e: Exception) {
                                 error = apiMessage(e)
                             } finally {
@@ -195,12 +180,12 @@ fun AgendaApp() {
                         }
                     }
                 ) { Text(if (busy) "Conectando..." else "Entrar") }
-                Text("Login e senha não são salvos no dispositivo. A API precisa estar publicada.")
+                Text("Acesso seguro ao Agenda Barber. Senha não é armazenada no aparelho.")
             }
         }
         return
     }
-    val api = remember(url) { AgendaApiFactory.create(url) }
+    val api = remember(apiUrl) { AgendaApiFactory.create(apiUrl) }
     BarberAuthenticatedApp(api, currentToken, onLogout = { token = null })
 }
 
