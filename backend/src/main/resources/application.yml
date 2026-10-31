@@ -56,6 +56,13 @@ spring:
       connection-timeout: 20000
       validation-timeout: 5000
       keepalive-time: 0
+      pool-name: AgendaBarberNeonPool
+      register-mbeans: true
+      data-source-properties:
+        connectTimeout: 10
+        loginTimeout: 15
+        socketTimeout: 60
+        logServerErrorDetail: false
 management:
   endpoints:
     web:
