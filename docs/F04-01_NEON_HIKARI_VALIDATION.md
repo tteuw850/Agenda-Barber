@@ -45,3 +45,18 @@ Idempotencia de escritas pertence a F04-03.
 Referencias:
 https://jdbc.postgresql.org/documentation/use/
 https://neon.com/docs/manage/endpoints
+
+## Evidencias coletadas em 31/10/2026
+
+- Docker Desktop 29.6.2 iniciado no Windows e reconhecido pelo Testcontainers 2.0.5.
+- `mvn -B -ntp verify`: BUILD SUCCESS, 67 testes (66 passaram, 1 ignorado, 0 falhas, 0 erros). O unico ignorado foi NeonConnectionSmokeTest, condicionado a SPRING_PROFILES_ACTIVE=neon.
+- Os testes de integracao criaram PostgreSQL 17 temporario em Docker e aplicaram/validaram as sete migrations Flyway exclusivamente nesses bancos de teste.
+- Compute Neon DEVELOPMENT `ep-morning-boat-b6b8phdw` observado em `idle`, com `suspended_at=2026-10-31T05:35:31Z`.
+- Uma unica consulta SELECT sem mutacoes na branch DEVELOPMENT, pelo conector Neon, retornou 1 e usuario `agenda_app_dev` em aproximadamente 3082 ms. Logo apos, o endpoint passou para `active` (started_at=2026-10-31T05:46:47Z).
+- A sessao de SQL do conector retornou pg_stat_ssl=false; isso NAO testa TLS do driver JDBC da aplicacao (sslmode=verify-full). Validar TLS no caminho real da API separadamente.
+- Nao houve alteracao no banco Production, no container AWS, no Render, nem merge/push/deploy.
+
+### Pendente para encerrar F04-01
+- Executar GET autenticado atraves da API Java com o novo HikariCP apos suspensao real do compute e registrar tempo/HTTP/logs sem expor segredos.
+- Conferir metricas JMX do pool na aplicacao com o novo build, sem abrir porta JMX externa.
+- Preparar revisao por PR e autorizacao de deploy DEV separadamente.
