@@ -39,7 +39,11 @@ def inspect_sources() -> list[str]:
 
 def verify_cd_policy() -> list[str]:
     errors: list[str] = []
-    cd = (ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8")
+    cd_path = ROOT / ".github/workflows/cd.yml"
+    if not cd_path.exists():
+        # Manual EC2 deploy via CodeBridge; no deploy workflow is configured.
+        return errors
+    cd = cd_path.read_text(encoding="utf-8")
     if not re.search(r"(?m)^on:\s*\n\s+workflow_dispatch:", cd):
         errors.append("cd.yml must only be manually triggered by workflow_dispatch")
     # Event triggers are forbidden here. Comment-only lines are ignored.
@@ -47,9 +51,8 @@ def verify_cd_policy() -> list[str]:
         errors.append("cd.yml must never deploy on push, PR, schedule or workflow_run")
     for label, token in (
         ("main-only branch guard", 'refs/heads/main'),
-        ("manual confirmation", 'DEPLOY_DEV'),
+        ("manual confirmation", 'DEPLOY_AWS_DEV'),
         ("development environment", 'name: development'),
-        ("deploy hook secret", 'secrets.RENDER_DEV_DEPLOY_HOOK'),
     ):
         if token not in cd:
             errors.append(f"cd.yml missing {label}")
@@ -64,7 +67,7 @@ def main() -> int:
         for line in problems:
             print(" - " + line, file=sys.stderr)
         return 1
-    print("OK: high-confidence secret patterns absent; manual DEV-only CD policy present.")
+    print("OK: no high-confidence secrets; no automatic deployment enabled.")
     print("Note: no claim of exhaustive secret scanning or vulnerability assessment.")
     return 0
 

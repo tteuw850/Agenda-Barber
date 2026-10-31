@@ -64,7 +64,7 @@ internal fun validLoginInput(email: String, password: String, url: String): Bool
 
 @Composable
 fun AgendaApp() {
-    var url by remember { mutableStateOf("") }
+    var url by remember { mutableStateOf("https://18-216-115-216.sslip.io/") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var token by remember { mutableStateOf<String?>(null) }

@@ -1,80 +1,56 @@
-# Agenda Barber — CI/CD (revisão inicial, sem deploy executado)
+# Agenda Barber: AWS EC2 only (31/10/2026)
 
-## Limites e status
+## Current hosting
+- API Spring Boot 4.1.1 / Java 21 / PostgreSQL Neon.
+- AWS EC2 Ubuntu 24.04, Caddy HTTPS, Docker Compose.
+- URL: https://18-216-115-216.sslip.io
+- Runtime: /opt/agenda-barber-dev/deploy/compose.yaml
+- Secret env: /opt/agenda-barber-dev/deploy/.env (chmod 600; never commit).
+- Source checkout: /opt/agenda-barber-dev/src, branch main.
+- Container: deploy-api-1, local-only port 127.0.0.1:8080.
+- Known good image: agenda-barber-dev:aws-dfd774e
+- Previous rollback image: agenda-barber-dev:rollback-1c0e86a.
+- Health HTTP 200 UP; unauthenticated /api/v1/clients HTTP 401.
 
-A CI valida Java/Spring Boot, Dockerfile, Kotlin/Android e gera APK **debug** para revisão manual.
-A CD é **somente manual** e limitada ao **Render DEV**, após nova autorização, merge na
-branch padrão e configuração de segredos/proteções. Não há pipeline de produção,
-nenhum deploy nesta entrega, publicação Play Store ou migração Neon automática.
+## CI
+.github/workflows/ci.yml builds/tests Java and Android. security.yml
+checks source guardrails. The backend remains deployed to AWS, not Render.
 
-Dependência de branches: PR F02-07 empilhada na branch `feat/f02-05-android-shell`
-(PR #9 ainda pendente de integração na `main`). Novos workflows somente ficam
-disponíveis para `workflow_dispatch` na interface quando estiverem na branch padrão.
+## Deployment
+Deployment to EC2 is currently managed with authorized SSH access from
+CodeBridge. Avoid building Docker images on the 2 GB EC2; the Docker build
+caused SSH instability on 31/10/2026. Prefer preparing an image on a CI
+runner or stronger build host, transferring the image securely, and activating
+it with scripts/deploy/aws-ec2-release.sh. The script saves the previous
+Compose file and restores it when health checks fail.
 
-## CI — `.github/workflows/ci.yml`
+The old Render deployment trigger was removed. There is no enabled
+automatic AWS deployment workflow; do not imply future GitHub merges
+deploy themselves. Add an AWS deployment workflow after provisioning
+a dedicated restricted key and testing rollback.
 
-Triggers: PR, push na `main` e execução manual. Permissão mínima `contents: read`.
-- Java 21, `mvn -B -ntp -f backend/pom.xml verify`, Checkstyle e `docker build` **sem push**.
-- Android SDK 36, Gradle 9.4.1, `ktlintCheck`, `testDebugUnitTest`, `lintDebug`, `assembleDebug`.
-- Artefatos: `agenda-barber-debug-apk`, `backend-test-reports`,
-  `android-test-and-lint-reports` (até 7 dias). APK debug **não** é versão de produção.
-- Timeouts e concurrency. CI não acessa Neon de produção nem Render via deploy hook.
+## Monitoring
+.github/workflows/aws-dev-health.yml checks API health and authentication
+four times per day. The monitoring workflow currently uses the verified AWS HTTPS URL
+https://18-216-115-216.sslip.io directly. Update it when public DNS changes.
+Use AWS CloudWatch/Billing Budgets, Docker logs and Caddy logs.
 
-## Segurança — `.github/workflows/security.yml`
+## Android
+The login screen defaults to https://18-216-115-216.sslip.io/ and still
+offers API HTTPS for changing host. Old APKs need manual configuration.
+The GitHub Actions debug APK is not a production release.
+Validate login, scheduling, client/service CRUD, financial reports and
+offline behavior with Neon development.
 
-Trigger: PR, push main e manual. Executa `scripts/ci/security_checks.py`:
-busca padrões **de alta confiança** de chaves em arquivos Git rastreados e verifica
-que a CD não dispara em push/PR. Saída imprime caminhos/linhas, **nunca o segredo**.
-`scripts/ci/dependency_inventory.py` produz lista de **dependências diretas** de
-Maven/Gradle para revisão. Isso **não é** auditoria de CVEs ou SCA abrangente;
-implementar Dependabot e varredura de CVEs conforme políticas do repositório.
+## Stable public address
+The sslip.io hostname encodes the current EC2 public IPv4. A stop/start
+of EC2 can change the IPv4 address and break Android HTTPS. Set up
+an AWS Elastic IP or managed DNS and consider its price before relying
+on this as a long-term public address.
 
-## CD DEV — `.github/workflows/cd.yml` (não executar nesta etapa)
-
-Somente `workflow_dispatch`, branch `main`, texto exato `DEPLOY_DEV`, e
-GitHub Environment `development`. Ao ser executada posteriormente, valida
-o backend, depois aciona o Render deploy hook via `RENDER_DEV_DEPLOY_HOOK`
-**armazenado como secret do Environment**. O hook não deve aparecer em logs.
-No Render, o serviço DEV é `agenda-barber-api-dev` (`autoDeploy=no`,
-verificado durante o planejamento); nenhuma configuração de produção é tocada.
-
-### Preparação manual ANTES de qualquer futuro deploy (não realizada nesta entrega)
-1. Após aprovação dos PRs, mesclar ordenadamente F02-05 e F02-07 na `main`.
-2. Em GitHub Settings > Environments, configurar `development` com
-   required reviewers e regra de branch limitada a `main`, se disponível no plano.
-   **Não presumir que a proteção esteja configurada automaticamente.**
-3. Criar secret de Environment `RENDER_DEV_DEPLOY_HOOK` contendo **somente**
-   o hook do serviço DEV, obtido do painel Render. Não colocar URL/chave em commit,
-   comentários do Trello ou logs. Manter `autoDeploy=no` para não implantar em merges.
-4. Solicitar autorização específica para uma execução de CD; o `workflow_dispatch`
-   não será disparado nesta etapa.
-
-### Verificação e rollback
-
-A chamada ao hook indica **solicitação** de deploy, não comprova nova versão no ar.
-Acompanhar deploy, logs e `/actuator/health` no Render; verificar autenticação e API
-contra Neon **development**. Se falhar, usar o rollback/novo deploy manual no Render
-e revisar logs e migrações antes de tentar novamente. Banco de produção não é alvo.
-
-## Rodar as verificações localmente
-
-```powershell
-cd D:\appeber
-python scripts\ci\security_checks.py
-python scripts\ci\dependency_inventory.py
-cd android-app
-gradle :app:ktlintCheck :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
-cd ..\backend
-mvn verify
-```
-
-O Python não instala dependências extras. O SDK/Gradle/Maven necessários já fazem
-parte da configuração existente; substituir comandos pelos executáveis locais.
-Conferir os reports em GitHub Actions no PR antes de aprovar merge.
-
-## Pendências F02-07
-
-Além da CI, continuam necessários teste operacional de criação, edição, início,
-conclusão, cancelamento, retorno da UX-05, repetição idempotente e conflito 409,
-além dos screenshots comparativos UX-03/UX-04 com o mockup aprovado. Não aprovar
-F02-07 somente porque o Gradle passou.
+## Retiring Render
+Remove old Render deployment web service, hooks and GitHub secrets.
+Never delete Neon PostgreSQL; it is an independent provider.
+The Render connector does not support deleting services. Confirm
+deletion separately in Render dashboard Settings. Until then do not
+claim the Render resource has been deleted or billing terminated.
