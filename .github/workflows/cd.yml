@@ -112,6 +112,14 @@ jobs:
           printf '%s\n' "$PINNED_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
           ssh-keygen -F '18.216.115.216' -f "$HOME/.ssh/known_hosts" > /dev/null
+          # The tunnel uses local port 2222. Derive its host-key pin ONLY from
+          # the already-verified EC2 host key, never from an untrusted scan.
+          ssh-keygen -F '18.216.115.216' -f "$HOME/.ssh/known_hosts" |
+            awk '!/^#/ && NF >= 3 && ($2 ~ /^ssh-/ || $2 ~ /^ecdsa-/) {
+              print "[127.0.0.1]:2222", $2, $3
+            }' > "$HOME/.ssh/ssm_known_hosts"
+          chmod 600 "$HOME/.ssh/ssm_known_hosts"
+          ssh-keygen -F '[127.0.0.1]:2222' -f "$HOME/.ssh/ssm_known_hosts" > /dev/null
 
       - name: Open temporary SSM tunnel to EC2 local SSH port
         shell: bash
@@ -145,8 +153,8 @@ jobs:
           set -euo pipefail
           short="$(printf '%s' "$GITHUB_SHA" | cut -c1-7)"
           ssh_opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes
-                    -o HostKeyAlias=18.216.115.216
-                    -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+                    -o UserKnownHostsFile="$HOME/.ssh/ssm_known_hosts"
+                    -o IdentitiesOnly=yes
                     -o ConnectTimeout=20 -i "$HOME/.ssh/aws_deploy")
           scp -P 2222 "${ssh_opts[@]}" "$RUNNER_TEMP/agenda-barber-image.tar.gz" \
             "ubuntu@127.0.0.1:/tmp/agenda-barber-$short.tar.gz"
@@ -159,9 +167,9 @@ jobs:
           set -euo pipefail
           short="$(printf '%s' "$GITHUB_SHA" | cut -c1-7)"
           ssh -p 2222 -o BatchMode=yes -o StrictHostKeyChecking=yes \
-            -o HostKeyAlias=18.216.115.216 \
-            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            -o ConnectTimeout=20 -i "$HOME/.ssh/aws_deploy" \
+            -o UserKnownHostsFile="$HOME/.ssh/ssm_known_hosts" \
+            -o IdentitiesOnly=yes -o ConnectTimeout=20 \
+            -i "$HOME/.ssh/aws_deploy" \
             ubuntu@127.0.0.1 "bash /tmp/agenda-barber-release-$short.sh $short"
 
       - name: Confirm AWS HTTPS health and protected route
@@ -183,4 +191,4 @@ jobs:
           if [[ -n "${SSM_TUNNEL_PID:-}" ]]; then
             kill "$SSM_TUNNEL_PID" 2>/dev/null || true
           fi
-          rm -f "$HOME/.ssh/aws_deploy"
+          rm -f "$HOME/.ssh/aws_deploy" "$HOME/.ssh/ssm_known_hosts"
