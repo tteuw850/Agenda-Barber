@@ -8,6 +8,7 @@ expected_digest="${2:?64-char SHA-256 required}"
 [[ "$expected_digest" =~ ^[a-f0-9]{64}$ ]] || { echo "Invalid SHA-256" >&2; exit 2; }
 
 # AWS-RunRemoteScript runs the command inside the downloaded script directory.
+cd "$(dirname "$0")"
 archive="./agenda-barber-image.tar.gz"
 release="./aws-ec2-release.sh"
 test -f "$archive"
