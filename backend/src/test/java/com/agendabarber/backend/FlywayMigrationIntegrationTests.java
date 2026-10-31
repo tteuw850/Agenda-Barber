@@ -57,6 +57,23 @@ class FlywayMigrationIntegrationTests {
     }
 
     @Test
+    void usernameMigrationRequiresValidUniqueUsernamesAndPreservesExistingAccounts()
+            throws SQLException {
+        Fixture first = fixture();
+        Fixture second = fixture();
+        assertEquals(2, count("SELECT count(*) FROM users WHERE id IN ('"
+                + first.userId() + "','" + second.userId() + "') AND username IS NULL"));
+        execute("UPDATE users SET username='ebinho' WHERE id=?", first.userId());
+        SQLException duplicate = assertThrows(SQLException.class, () ->
+                execute("UPDATE users SET username='ebinho' WHERE id=?", second.userId()));
+        assertEquals("23505", duplicate.getSQLState());
+        SQLException invalid = assertThrows(SQLException.class, () ->
+                execute("UPDATE users SET username='invalid username' WHERE id=?", second.userId()));
+        assertEquals("23514", invalid.getSQLState());
+        assertEquals(1, count("SELECT count(*) FROM users WHERE username='ebinho'"));
+    }
+
+    @Test
     void rejectsActiveOverlapsButAllowsAdjacentSlots() throws SQLException {
         Fixture f = fixture();
         insertAppointment(f, f.clientId(), f.serviceId(), "2030-03-01T10:00:00Z",
