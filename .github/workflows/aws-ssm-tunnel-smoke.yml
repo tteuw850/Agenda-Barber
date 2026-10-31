@@ -1,0 +1,100 @@
+name: AWS DEV - SSM private SSH tunnel test (read-only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+
+concurrency:
+  group: agenda-barber-dev-ssm-tunnel-test
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: Check private SSM tunnel + SSH identity (no deployment)
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment:
+      name: development
+    steps:
+      - name: Check allowed repository, branch and AWS identity
+        shell: bash
+        env:
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "tteuw850/Agenda-Barber"
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$AWS_ROLE_ARN" = "arn:aws:iam::916949393497:role/AgendaBarber-GitHub-SSM-DEV-Role"
+
+      - name: Obtain temporary AWS identity via OIDC
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-east-2
+          role-session-name: AgendaBarberDevDeploy
+          role-duration-seconds: 900
+          mask-aws-account-id: true
+
+      - name: Install official AWS Session Manager plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 3 \
+            'https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb' \
+            --output "$RUNNER_TEMP/session-manager-plugin.deb"
+          sudo dpkg --install "$RUNNER_TEMP/session-manager-plugin.deb"
+          session-manager-plugin --version
+
+      - name: Test SSM tunnel and SSH without writing to EC2
+        shell: bash
+        env:
+          DEPLOY_KEY: ${{ secrets.AWS_DEV_SSH_PRIVATE_KEY }}
+          PINNED_HOSTS: ${{ secrets.AWS_DEV_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          trap 'if [[ -n "${tunnel_pid:-}" ]]; then kill "$tunnel_pid" 2>/dev/null || true; fi; rm -f "$HOME/.ssh/aws_test_key" "$HOME/.ssh/ssm_known_hosts"' EXIT
+          test -n "$DEPLOY_KEY"
+          test -n "$PINNED_HOSTS"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/aws_test_key"
+          chmod 600 "$HOME/.ssh/aws_test_key"
+          printf '%s\n' "$PINNED_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -F '18.216.115.216' -f "$HOME/.ssh/known_hosts" |
+            awk '!/^#/ && NF >= 3 && ($2 ~ /^ssh-/ || $2 ~ /^ecdsa-/) {
+              print "[127.0.0.1]:2222", $2, $3
+            }' > "$HOME/.ssh/ssm_known_hosts"
+          chmod 600 "$HOME/.ssh/ssm_known_hosts"
+          ssh-keygen -F '[127.0.0.1]:2222' -f "$HOME/.ssh/ssm_known_hosts" > /dev/null
+
+          aws ssm start-session \
+            --target i-02063104b98a730db \
+            --document-name AWS-StartPortForwardingSession \
+            --parameters '{"portNumber":["22"],"localPortNumber":["2222"]}' \
+            > "$RUNNER_TEMP/ssm-tunnel-test.log" 2>&1 &
+          tunnel_pid=$!
+          ready=0
+          for attempt in $(seq 1 60); do
+            if ! kill -0 "$tunnel_pid" 2>/dev/null; then
+              echo '::error::SSM tunnel exited prematurely (check IAM StartSession).'
+              exit 1
+            fi
+            if (echo > /dev/tcp/127.0.0.1/2222) >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 2
+          done
+          test "$ready" = 1 || { echo '::error::SSM tunnel unavailable.'; exit 1; }
+          ssh -p 2222 -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/ssm_known_hosts" \
+            -o ConnectTimeout=15 -i "$HOME/.ssh/aws_test_key" \
+            ubuntu@127.0.0.1 \
+            "test \"\$(whoami)\" = ubuntu && hostname >/dev/null && echo 'Private SSM tunnel SSH: success'"
+
+      - name: Confirmation
+        run: echo 'OIDC and SSM private SSH tunnel tested; no deploy and no EC2 files changed.'
