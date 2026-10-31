@@ -1,0 +1,31 @@
+name: Agenda Barber - AWS API health
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agenda-barber-aws-dev-health
+  cancel-in-progress: false
+
+jobs:
+  aws-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      AWS_DEV_BASE_URL: https://18-216-115-216.sslip.io
+    steps:
+      - name: Check AWS HTTPS and authentication (read only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$AWS_DEV_BASE_URL"
+          response="$(curl -fsSL --connect-timeout 10 --max-time 40 "${AWS_DEV_BASE_URL%/}/actuator/health")"
+          printf '%s' "$response" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"'
+          unauth="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "${AWS_DEV_BASE_URL%/}/api/v1/clients")"
+          test "$unauth" = 401
+          echo 'AWS API health: UP; unauthenticated endpoint: 401'
