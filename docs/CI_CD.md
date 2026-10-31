@@ -55,30 +55,25 @@ The Render connector does not support deleting services. Confirm
 deletion separately in Render dashboard Settings. Until then do not
 claim the Render resource has been deleted or billing terminated.
 
-## GitHub Actions AWS CD (manual, aguardando secrets)
+## GitHub Actions AWS CD — OIDC + tunel privado SSM (SEM S3)
 
-O workflow `.github/workflows/cd.yml` foi preparado para implantar exclusivamente na
-EC2 de desenvolvimento por `workflow_dispatch`, a partir de `main`, com
-confirmacao literal `DEPLOY_AWS_DEV` e o GitHub Environment `development`.
-Nao ha disparo por push, pull request ou agendamento. O build de imagem ocorre
-no runner GitHub, e nao na EC2 pequena. O script `scripts/deploy/aws-ec2-release.sh`
-troca a imagem do Compose e executa rollback se o health check local falhar.
+O fluxo atual por SSH publico falhou porque o Security Group libera TCP/22
+apenas ao IP residencial. O teste OIDC de leitura do SSM teve sucesso.
 
-Configure em GitHub Settings > Environments > development:
-- Variable `AWS_DEV_HOST`: `18.216.115.216` (atualizar caso o IP mude).
-- Variable `AWS_DEV_BASE_URL`: `https://18-216-115-216.sslip.io`.
-- Secret `AWS_DEV_SSH_PRIVATE_KEY`: chave de deploy exclusiva, sem passphrase,
-  armazenada localmente em `%USERPROFILE%\\.ssh\\agenda-barber-actions-deploy`.
-- Secret `AWS_DEV_SSH_KNOWN_HOSTS`: registros de host SSH previamente verificados,
-  preparados em `%USERPROFILE%\\.ssh\\agenda-barber-aws-known_hosts`.
+A nova PR em rascunho entrega a imagem diretamente a EC2, sem bucket S3:
+- somente workflow_dispatch da main com DEPLOY_AWS_DEV;
+- testes Java e Docker build no GitHub-hosted runner;
+- AWS OIDC com credenciais temporarias;
+- Session Manager plugin abre tunel privado 127.0.0.1:2222 -> EC2:22;
+- SCP sobre tunel com chave SSH de deploy e host key ja configuradas;
+- Docker Compose na EC2 e rollback existente, com health checks HTTPS;
+- nenhuma nova porta publica, nenhum bucket S3, ECR, GHCR ou runner local.
 
-A chave publica correspondente ja foi autorizada na conta `ubuntu` da EC2.
-Nao reutilizar a chave pessoal `.pem`; nao enviar chave privada em chats, commits,
-logs ou tickets. Concluir a configuracao dos secrets no painel autenticado e,
-preferencialmente, proteger o Environment com aprovadores/limite de branch.
-O canal de autenticacao com a nova chave nao foi testado ponta a ponta; verificar
-na primeira execucao manual controlada. Nao executar deploy ate que os quatro
-valores estejam configurados. O workflow nao altera Neon production nem Render.
+**Prerequisito obrigatorio:** ampliar a policy de permissoes da funcao
+AgendaBarber-GitHub-SSM-DEV-Role APENAS para iniciar sessao SSM com
+AWS-StartPortForwardingSession na EC2 development e abrir o canal.
+Ver passos, JSON de IAM e testes em [AWS_SSM_TUNNEL_CD.md](AWS_SSM_TUNNEL_CD.md).
 
-A primeira execucao manual deve testar a instalacao, HTTPS, status 401 sem
-credenciais e rollback. O APK ainda precisa de teste funcional em dispositivo.
+Nao utilizar workflow de CD enquanto a PR estiver em rascunho.
+Quando integrar, um merge sozinho NAO dispara deploy. O primeiro teste
+sera manual e controlado, preservando Neon production e rollback.
