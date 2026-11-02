@@ -1,6 +1,7 @@
 package com.agendabarber.app.network
 
 import java.math.BigDecimal
+import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -343,7 +344,7 @@ object AgendaApiFactory {
         }
         return Retrofit.Builder()
             .baseUrl(base)
-            .client(OkHttpClient.Builder().build())
+            .client(OkHttpClient.Builder().callTimeout(25, TimeUnit.SECONDS).build())
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(AgendaApi::class.java)

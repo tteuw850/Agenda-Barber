@@ -65,6 +65,8 @@ import java.math.BigDecimal
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import retrofit2.HttpException
 
 internal enum class BarberServiceIcon(val label: String) {
     SCISSORS("Corte"),
@@ -116,11 +118,21 @@ internal fun BarberServicesCatalogScreen(api: AgendaApi, token: String, onBack: 
         loading = true
         error = ""
         try {
-            services = api.services(token, activeOnly = false)
+            val result = withTimeoutOrNull(20_000L) {
+                api.services(token, activeOnly = false)
+            }
+            if (result == null) {
+                error = "Tempo esgotado ao carregar serviços. Verifique a rede e tente novamente."
+            } else {
+                services = result
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
-            error = "Não foi possível carregar os serviços. Verifique sua conexão."
+            error = when ((failure as? HttpException)?.code()) {
+                401, 403 -> "Sessão expirada ou acesso negado. Saia e entre novamente."
+                else -> "Não foi possível carregar os serviços. Verifique sua conexão."
+            }
         } finally {
             loading = false
         }

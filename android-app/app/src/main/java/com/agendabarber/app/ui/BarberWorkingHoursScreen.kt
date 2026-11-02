@@ -48,6 +48,7 @@ import com.agendabarber.app.ui.theme.BarberTextPrimary
 import com.agendabarber.app.ui.theme.BarberTextSecondary
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import retrofit2.HttpException
 
 private data class DayEditor(val weekday: Int, val data: WorkingHoursView?)
@@ -75,7 +76,15 @@ internal fun BarberWorkingHoursScreen(api: AgendaApi, token: String, onBack: () 
         loading = true
         error = ""
         try {
-            hours = api.workingHours(token)
+            val result = withTimeoutOrNull(20_000L) {
+                api.workingHours(token)
+            }
+            if (result == null) {
+                hours = emptyList()
+                error = "Tempo esgotado ao carregar horários. Verifique a rede e tente novamente."
+            } else {
+                hours = result
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Exception) {
