@@ -8,14 +8,31 @@ archive="/tmp/agenda-barber-$sha.tar.gz"
 new="agenda-barber-dev:aws-$sha"
 backup="$dir/compose.before-$sha.yaml"
 cd "$dir"
-test -r "$archive"
 test -f "$dir/.env"
+old="$(awk '/^[[:space:]]*image: agenda-barber-dev:/{print $2;exit}' "$compose")"
+[[ "$old" =~ ^agenda-barber-dev:aws(-[a-f0-9]{7})?$ ]] || exit 3
+
+# Rerunning the same commit is a successful no-op only when the expected
+# image is actually running AND the local API passes its health check.
+# Never overwrite the original rollback backup or restart a healthy instance.
+if [[ "$old" == "$new" ]]; then
+  running="$(sudo docker inspect --format '{{.Config.Image}}|{{.State.Running}}' deploy-api-1 2>/dev/null || true)"
+  if [[ "$running" == "$new|true" ]] &&
+    curl -fsS --max-time 5 http://127.0.0.1:8080/actuator/health |
+      grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"'; then
+    rm -f "$archive" "/tmp/agenda-barber-release-$sha.sh"
+    echo "AWS DEV already live and healthy: $new (idempotent no-op)"
+    exit 0
+  fi
+  echo "Image selected but container is not healthy; refusing unsafe redeploy of same SHA" >&2
+  exit 6
+fi
+
+test -r "$archive"
 test ! -e "$backup"
 sudo docker load -i "$archive"
 sudo docker image inspect "$new" > /dev/null
 cp -p "$compose" "$backup"
-old="$(awk '/^[[:space:]]*image: agenda-barber-dev:/{print $2;exit}' "$compose")"
-[[ "$old" =~ ^agenda-barber-dev:aws(-[a-f0-9]{7})?$ ]] || exit 3
 rollback() {
   echo 'AWS new image unhealthy: restoring previous container' >&2
   cp "$backup" "$compose"
