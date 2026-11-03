@@ -164,7 +164,13 @@ internal fun BarberServicesCatalogScreen(api: AgendaApi, token: String, onBack: 
                 Text("Novo")
             }
         }
-        if (loading) CircularProgressIndicator(color = BarberGold)
+        if (loading) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(color = BarberGold, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(12.dp))
+                Text("Sincronizando servicos com a API...", color = BarberTextSecondary)
+            }
+        }
         if (error.isNotBlank()) {
             Text(error, color = MaterialTheme.colorScheme.error)
             TextButton(onClick = { revision++ }) { Text("Tentar novamente") }

@@ -1,5 +1,8 @@
 package com.agendabarber.app.network
 
+import android.util.Log
+import com.agendabarber.app.BuildConfig
+import java.io.IOException
 import java.math.BigDecimal
 import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
@@ -344,7 +347,33 @@ object AgendaApiFactory {
         }
         return Retrofit.Builder()
             .baseUrl(base)
-            .client(OkHttpClient.Builder().callTimeout(25, TimeUnit.SECONDS).build())
+            .client(
+                OkHttpClient.Builder()
+                    .callTimeout(15, TimeUnit.SECONDS)
+                    .addInterceptor { chain ->
+                        val request = chain.request()
+                        val path = request.url().encodedPath()
+                        val trace = BuildConfig.DEBUG &&
+                            (path == "/api/v1/services" || path == "/api/v1/schedule/working-hours")
+                        val start = System.nanoTime()
+                        try {
+                            val response = chain.proceed(request)
+                            if (trace) {
+                                Log.i(
+                                    "AgendaBarberAPI",
+                                    "$path code=${response.code()} elapsedMs=${(System.nanoTime() - start) / 1_000_000}"
+                                )
+                            }
+                            response
+                        } catch (failure: IOException) {
+                            if (trace) {
+                                Log.w("AgendaBarberAPI", "$path networkFailure=${failure.javaClass.simpleName}")
+                            }
+                            throw failure
+                        }
+                    }
+                    .build()
+            )
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(AgendaApi::class.java)

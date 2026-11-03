@@ -118,7 +118,14 @@ internal fun BarberWorkingHoursScreen(api: AgendaApi, token: String, onBack: () 
             style = MaterialTheme.typography.bodySmall
         )
         if (loading) {
-            CircularProgressIndicator(color = BarberGold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(color = BarberGold)
+                Text(
+                    "Sincronizando horario com a API...",
+                    modifier = Modifier.padding(start = 12.dp),
+                    color = BarberTextSecondary
+                )
+            }
         }
         if (error.isNotBlank()) {
             Text(error, color = MaterialTheme.colorScheme.error)
@@ -127,41 +134,43 @@ internal fun BarberWorkingHoursScreen(api: AgendaApi, token: String, onBack: () 
         if (message.isNotBlank()) {
             Text(message, color = BarberGold)
         }
-        if (!loading && error.isBlank()) {
-            scheduleWeekdayNames.forEachIndexed { index, name ->
-                val weekday = index + 1
-                val current = hours.firstOrNull { it.weekday == weekday }
-                Card(
-                    modifier = Modifier.fillMaxWidth().clickable {
-                        saveError = ""
-                        message = ""
-                        selected = DayEditor(weekday, current)
-                    },
-                    colors = CardDefaults.cardColors(containerColor = BarberSurface),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, BarberOutline)
+        scheduleWeekdayNames.forEachIndexed { index, name ->
+            val weekday = index + 1
+            val current = hours.firstOrNull { it.weekday == weekday }
+            Card(
+                modifier = Modifier.fillMaxWidth().clickable(enabled = !loading && error.isBlank()) {
+                    saveError = ""
+                    message = ""
+                    selected = DayEditor(weekday, current)
+                },
+                colors = CardDefaults.cardColors(containerColor = BarberSurface),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, BarberOutline)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(name, color = BarberTextPrimary, fontWeight = FontWeight.Medium)
-                            Text(
-                                if (current?.enabled == true) {
-                                    "${scheduleClock(current.opensAt)} – ${scheduleClock(current.closesAt)}"
-                                } else {
-                                    "Fechado"
-                                },
-                                color = BarberTextSecondary
-                            )
-                        }
-                        Icon(
-                            Icons.Outlined.Edit,
-                            contentDescription = "Editar $name",
-                            tint = BarberGold
+                    Column(Modifier.weight(1f)) {
+                        Text(name, color = BarberTextPrimary, fontWeight = FontWeight.Medium)
+                        Text(
+                            if (loading) {
+                                "Sincronizando..."
+                            } else if (error.isNotBlank()) {
+                                "Nao sincronizado"
+                            } else if (current?.enabled == true) {
+                                "${scheduleClock(current.opensAt)} – ${scheduleClock(current.closesAt)}"
+                            } else {
+                                "Fechado"
+                            },
+                            color = BarberTextSecondary
                         )
                     }
+                    Icon(
+                        Icons.Outlined.Edit,
+                        contentDescription = "Editar $name",
+                        tint = BarberGold
+                    )
                 }
             }
         }
