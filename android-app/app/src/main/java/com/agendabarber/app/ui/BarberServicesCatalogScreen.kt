@@ -1,5 +1,6 @@
 package com.agendabarber.app.ui
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -114,7 +115,8 @@ internal fun BarberServicesCatalogScreen(api: AgendaApi, token: String, onBack: 
     var changingId by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(api, token, revision) {
+    LaunchedEffect(token, revision) {
+        Log.i("AgendaBarberScreen", "services load-start revision=$revision")
         loading = true
         error = ""
         try {
@@ -127,6 +129,7 @@ internal fun BarberServicesCatalogScreen(api: AgendaApi, token: String, onBack: 
                 services = result
             }
         } catch (cancelled: CancellationException) {
+            Log.i("AgendaBarberScreen", "services load-cancelled")
             throw cancelled
         } catch (failure: Exception) {
             error = when ((failure as? HttpException)?.code()) {
@@ -135,6 +138,7 @@ internal fun BarberServicesCatalogScreen(api: AgendaApi, token: String, onBack: 
             }
         } finally {
             loading = false
+            Log.i("AgendaBarberScreen", "services load-finished")
         }
     }
 

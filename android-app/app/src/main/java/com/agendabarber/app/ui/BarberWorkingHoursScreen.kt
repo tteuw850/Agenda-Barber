@@ -1,5 +1,6 @@
 package com.agendabarber.app.ui
 
+import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -72,7 +73,8 @@ internal fun BarberWorkingHoursScreen(api: AgendaApi, token: String, onBack: () 
     var saveError by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(api, token, revision) {
+    LaunchedEffect(token, revision) {
+        Log.i("AgendaBarberScreen", "working-hours load-start revision=$revision")
         loading = true
         error = ""
         try {
@@ -86,12 +88,14 @@ internal fun BarberWorkingHoursScreen(api: AgendaApi, token: String, onBack: () 
                 hours = result
             }
         } catch (cancelled: CancellationException) {
+            Log.i("AgendaBarberScreen", "working-hours load-cancelled")
             throw cancelled
         } catch (failure: Exception) {
             hours = emptyList()
             error = workingHoursApiError(failure)
         } finally {
             loading = false
+            Log.i("AgendaBarberScreen", "working-hours load-finished")
         }
     }
 
