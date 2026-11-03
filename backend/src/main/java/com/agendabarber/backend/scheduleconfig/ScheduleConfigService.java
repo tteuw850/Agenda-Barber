@@ -205,6 +205,32 @@ public class ScheduleConfigService {
             throw new ScheduleNotFoundException();
         }
         List<WorkingHoursView> schedule = workingHours(barberId);
+        Instant dayStart = date.atStartOfDay(zone).toInstant();
+        Instant dayEnd = date.plusDays(1).atStartOfDay(zone).toInstant();
+        List<ReservedWindow> reserved = new ArrayList<>(jdbc.query(
+                "SELECT starts_at,ends_at FROM appointments "
+                        + "WHERE barber_id=? AND status IN ('SCHEDULED','IN_PROGRESS') "
+                        + "AND starts_at<? AND ends_at>? "
+                        + "UNION ALL SELECT starts_at,ends_at FROM blocked_periods "
+                        + "WHERE barber_id=? AND starts_at<? AND ends_at>?",
+                (rs, n) -> new ReservedWindow(
+                        rs.getTimestamp(1).toInstant(), rs.getTimestamp(2).toInstant()),
+                barberId, utc(dayEnd), utc(dayStart),
+                barberId, utc(dayEnd), utc(dayStart)));
+        List<LocalTime[]> weekly = jdbc.query(
+                "SELECT starts_at,ends_at FROM recurring_blocks "
+                        + "WHERE barber_id=? AND weekday=? AND valid_from<=? AND valid_until>=?",
+                (rs, n) -> new LocalTime[] {
+                    rs.getObject(1, LocalTime.class), rs.getObject(2, LocalTime.class)
+                },
+                barberId, date.getDayOfWeek().getValue(), date, date);
+        for (LocalTime[] window : weekly) {
+            Instant from = resolved(date, window[0], zone);
+            Instant to = resolved(date, window[1], zone);
+            if (from != null && to != null) {
+                reserved.add(new ReservedWindow(from, to));
+            }
+        }
         List<FreeSlot> result = new ArrayList<>();
         for (WorkingHoursView hours : schedule) {
             if (!hours.enabled() || hours.weekday() != date.getDayOfWeek().getValue()) {
@@ -215,8 +241,7 @@ public class ScheduleConfigService {
                 Instant from = resolved(date, time, zone);
                 Instant to = resolved(date, time.plusMinutes(duration), zone);
                 if (from != null && to != null && to.isAfter(from)
-                        && !occupied(barberId, from, to)
-                        && !recurringOverlaps(barberId, from, to, zone)) {
+                        && !overlaps(reserved, from, to)) {
                     result.add(new FreeSlot(from, to, time));
                 }
                 if (time.isAfter(LocalTime.of(23, 30))) {
@@ -225,6 +250,18 @@ public class ScheduleConfigService {
             }
         }
         return result;
+    }
+
+    private static boolean overlaps(List<ReservedWindow> windows, Instant from, Instant to) {
+        for (ReservedWindow window : windows) {
+            if (from.isBefore(window.endsAt()) && to.isAfter(window.startsAt())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private record ReservedWindow(Instant startsAt, Instant endsAt) {
     }
 
     private ZoneId lockBarber(UUID barberId) {
