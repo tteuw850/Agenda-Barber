@@ -1,6 +1,6 @@
 package com.agendabarber.backend.scheduleconfig;
 
-import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.UUID;
@@ -48,11 +48,11 @@ class AvailableSlotsBatchIntegrationTests {
         assertEquals(7, schedule.availableSlots(barber, day, service).size());
 
         jdbc.update("INSERT INTO blocked_periods(barber_id,starts_at,ends_at) VALUES(?,?,?)",
-                barber, Instant.parse("2031-06-02T12:30:00Z"),
-                Instant.parse("2031-06-02T13:00:00Z"));
+                barber, OffsetDateTime.parse("2031-06-02T12:30:00Z"),
+                OffsetDateTime.parse("2031-06-02T13:00:00Z"));
         jdbc.update("INSERT INTO blocked_periods(barber_id,starts_at,ends_at) VALUES(?,?,?)",
-                otherBarber, Instant.parse("2031-06-02T12:00:00Z"),
-                Instant.parse("2031-06-02T12:30:00Z"));
+                otherBarber, OffsetDateTime.parse("2031-06-02T12:00:00Z"),
+                OffsetDateTime.parse("2031-06-02T12:30:00Z"));
         assertEquals(4, schedule.availableSlots(barber, day, service).size());
 
         jdbc.update("INSERT INTO recurring_blocks(barber_id,weekday,starts_at,ends_at,valid_from,valid_until) "
