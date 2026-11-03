@@ -19,10 +19,16 @@ fun validDate(value: String): Boolean = runCatching { LocalDate.parse(value) }.i
 fun apiMessage(error: Throwable): String = when ((error as? HttpException)?.code()) {
     400 -> "Verifique os dados e tente novamente."
     401 -> "Sua sessão expirou. Entre novamente."
+    403 -> "Sem permissão para consultar esse horário."
     404 -> "Cadastro não encontrado ou indisponível."
     409 -> "Esse horário está ocupado ou o atendimento mudou. Atualize a agenda."
-    503 -> "Servidor indisponível. Confira a conexão e tente novamente."
-    else -> "Não foi possível conectar à API. Confira o endereço e sua conexão."
+    429 -> "Muitas consultas em sequência. Tente novamente."
+    500, 502, 503, 504 -> "O servidor não conseguiu consultar a agenda. Tente novamente."
+    else -> if (error is java.io.IOException) {
+        "A consulta demorou ou a conexão falhou. Tente novamente."
+    } else {
+        "Não foi possível concluir a consulta. Tente novamente."
+    }
 }
 
 fun statusText(status: String): String = when (status) {
