@@ -1,5 +1,6 @@
 package com.agendabarber.backend.common;
 
+import com.agendabarber.backend.appointments.AppointmentRecurrenceService;
 import com.agendabarber.backend.appointments.AppointmentService;
 import com.agendabarber.backend.auth.AuthService;
 import com.agendabarber.backend.finance.ExpenseService;
@@ -152,22 +153,22 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, "Not found", "Barber not found.");
     }
 
-    @ExceptionHandler(com.agendabarber.backend.appointments.AppointmentRecurrenceService.InvalidRecurrenceException.class)
+    @ExceptionHandler(AppointmentRecurrenceService.InvalidRecurrenceException.class)
     ResponseEntity<ProblemDetail> invalidRecurrence(
-            com.agendabarber.backend.appointments.AppointmentRecurrenceService.InvalidRecurrenceException ignored) {
+            AppointmentRecurrenceService.InvalidRecurrenceException ignored) {
         return problem(HttpStatus.BAD_REQUEST, "Invalid recurrence",
                 "Select weekdays, time and a period of 4, 12 or 26 weeks (maximum 60 occurrences).");
     }
 
-    @ExceptionHandler(com.agendabarber.backend.appointments.AppointmentRecurrenceService.RecurrenceNotFoundException.class)
+    @ExceptionHandler(AppointmentRecurrenceService.RecurrenceNotFoundException.class)
     ResponseEntity<ProblemDetail> missingRecurrence(
-            com.agendabarber.backend.appointments.AppointmentRecurrenceService.RecurrenceNotFoundException ignored) {
+            AppointmentRecurrenceService.RecurrenceNotFoundException ignored) {
         return problem(HttpStatus.NOT_FOUND, "Not found", "Recurring booking series not found.");
     }
 
-    @ExceptionHandler(com.agendabarber.backend.appointments.AppointmentRecurrenceService.RecurrenceConflictException.class)
+    @ExceptionHandler(AppointmentRecurrenceService.RecurrenceConflictException.class)
     ResponseEntity<ProblemDetail> recurrenceConflict(
-            com.agendabarber.backend.appointments.AppointmentRecurrenceService.RecurrenceConflictException ignored) {
+            AppointmentRecurrenceService.RecurrenceConflictException ignored) {
         return problem(HttpStatus.CONFLICT, "Conflict",
                 "One or more recurring appointments are unavailable; no appointment was created.");
     }
