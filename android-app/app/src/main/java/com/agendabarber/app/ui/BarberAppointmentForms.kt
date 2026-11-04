@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -68,6 +69,8 @@ import com.agendabarber.app.network.ClientView
 import com.agendabarber.app.network.CompleteAppointment
 import com.agendabarber.app.network.CreateAppointment
 import com.agendabarber.app.network.HistoryItem
+import com.agendabarber.app.network.RecurrencePreview
+import com.agendabarber.app.network.RecurrenceRequest
 import com.agendabarber.app.network.ServiceView
 import com.agendabarber.app.network.SlotView
 import com.agendabarber.app.servicecatalog.formatBrl
@@ -89,6 +92,8 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
@@ -116,6 +121,7 @@ internal fun BarberAppointmentDetails(
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var confirmCancel by remember { mutableStateOf(false) }
+    var confirmCancelSeries by remember { mutableStateOf(false) }
     var confirmComplete by remember { mutableStateOf(false) }
     var receivedInput by remember(id) { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -212,6 +218,43 @@ internal fun BarberAppointmentDetails(
             dismissButton = { TextButton(onClick = { confirmCancel = false }) { Text("Voltar") } }
         )
     }
+    if (confirmCancelSeries) {
+        AlertDialog(
+            onDismissRequest = { if (!busy) confirmCancelSeries = false },
+            title = { Text("Cancelar os próximos agendamentos?") },
+            text = {
+                Text(
+                    "Serão cancelados somente os horários futuros ainda agendados desta série. " +
+                        "Atendimentos concluídos e históricos serão preservados."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !busy,
+                    onClick = {
+                        val seriesId = appointment?.recurrenceId ?: return@TextButton
+                        busy = true
+                        scope.launch {
+                            try {
+                                api.cancelRecurrenceFuture(token, seriesId)
+                                confirmCancelSeries = false
+                                refreshAfterAction()
+                            } catch (failure: Exception) {
+                                error = apiMessage(failure)
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    }
+                ) { Text("Cancelar próximos", color = BarberCancelAction) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmCancelSeries = false }) {
+                    Text("Voltar")
+                }
+            }
+        )
+    }
     Scaffold(
         containerColor = BarberBackground,
         bottomBar = {
@@ -264,7 +307,25 @@ internal fun BarberAppointmentDetails(
                         border = BorderStroke(1.dp, BarberCancelAction),
                         enabled = !busy,
                         onClick = { confirmCancel = true }
-                    ) { Text("Cancelar agendamento", color = BarberCancelAction) }
+                    ) {
+                        Text(
+                            if (current.recurrenceId != null) {
+                                "Cancelar só este atendimento"
+                            } else {
+                                "Cancelar agendamento"
+                            },
+                            color = BarberCancelAction
+                        )
+                    }
+                    if (current.recurrenceId != null) {
+                        TextButton(
+                            enabled = !busy,
+                            onClick = { confirmCancelSeries = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Cancelar todos os próximos da série", color = BarberCancelAction)
+                        }
+                    }
                 }
             }
         }
@@ -349,6 +410,12 @@ internal fun BarberAppointmentDetails(
                             " · " + current.durationMinutes + " min"
                     )
                     DetailRow(Icons.Outlined.ContentCut, "Serviço", current.serviceName)
+                    if (current.recurrenceId != null) {
+                        Text(
+                            "Agendamento recorrente · alterações nesta tela afetam apenas este dia.",
+                            color = BarberGold
+                        )
+                    }
                     DetailRow(Icons.Outlined.AttachMoney, "Preço agendado", formatBrl(current.price))
                     if (current.status == "COMPLETED") {
                         DetailRow(
@@ -447,6 +514,16 @@ internal fun BarberBookingForm(
     var conflict by remember { mutableStateOf(false) }
     var pickerVisible by remember { mutableStateOf(false) }
     var reloadSlots by remember { mutableIntStateOf(0) }
+    var repeatWeekly by rememberSaveable(editId) { mutableStateOf(false) }
+    var repeatDays by rememberSaveable(editId) {
+        mutableStateOf(listOf(LocalDate.parse(date).dayOfWeek.value))
+    }
+    var repeatWeeks by rememberSaveable(editId) { mutableIntStateOf(12) }
+    var recurrencePreview by remember { mutableStateOf<RecurrencePreview?>(null) }
+    var previewCheckedKey by remember { mutableStateOf("") }
+    var previewLoading by remember { mutableStateOf(false) }
+    var previewError by remember { mutableStateOf("") }
+    val previewKey = "$clientId|$serviceId|$date|$selectedStart|$repeatDays|$repeatWeeks"
     val priceValid = remember(price) {
         runCatching {
             val amount = BigDecimal(price.replace(",", "."))
@@ -515,6 +592,48 @@ internal fun BarberBookingForm(
             slots = emptyList()
         }
     }
+    LaunchedEffect(token, previewKey, repeatWeekly, editId) {
+        previewCheckedKey = ""
+        recurrencePreview = null
+        previewError = ""
+        if (repeatWeekly &&
+            editId == null &&
+            clientId.isNotBlank() &&
+            serviceId.isNotBlank() &&
+            selectedStart.isNotBlank() &&
+            validDate(date) &&
+            repeatDays.isNotEmpty()
+        ) {
+            previewLoading = true
+            try {
+                delay(350)
+                val startTime = Instant.parse(selectedStart).atZone(uiZone).toLocalTime()
+                    .withSecond(0).withNano(0).toString()
+                recurrencePreview = api.previewRecurrence(
+                    token,
+                    RecurrenceRequest(
+                        clientId,
+                        serviceId,
+                        date,
+                        startTime,
+                        repeatDays.sorted(),
+                        repeatWeeks,
+                        null,
+                        null
+                    )
+                )
+                previewCheckedKey = previewKey
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                previewError = apiMessage(failure)
+            } finally {
+                previewLoading = false
+            }
+        } else {
+            previewLoading = false
+        }
+    }
     if (pickerVisible) {
         val picker = androidx.compose.material3.rememberDatePickerState(
             initialSelectedDateMillis = LocalDate.parse(date).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
@@ -544,7 +663,18 @@ internal fun BarberBookingForm(
         serviceId.isNotBlank() &&
         selectedStart.isNotBlank() &&
         priceValid &&
-        notes.length <= 2000
+        notes.length <= 2000 &&
+        (
+            !repeatWeekly ||
+                editId != null ||
+                (
+                    repeatDays.isNotEmpty() &&
+                        !previewLoading &&
+                        previewCheckedKey == previewKey &&
+                        recurrencePreview != null &&
+                        recurrencePreview?.unavailable == 0
+                    )
+            )
     Scaffold(
         containerColor = BarberBackground,
         bottomBar = {
@@ -556,7 +686,24 @@ internal fun BarberBookingForm(
                     scope.launch {
                         try {
                             val amount = BigDecimal(price.replace(",", "."))
-                            if (editId == null) {
+                            if (editId == null && repeatWeekly) {
+                                val localTime = Instant.parse(selectedStart).atZone(uiZone)
+                                    .toLocalTime().withSecond(0).withNano(0).toString()
+                                api.createRecurrence(
+                                    token,
+                                    key,
+                                    RecurrenceRequest(
+                                        clientId,
+                                        serviceId,
+                                        date,
+                                        localTime,
+                                        repeatDays.sorted(),
+                                        repeatWeeks,
+                                        amount,
+                                        notes.ifBlank { null }
+                                    )
+                                )
+                            } else if (editId == null) {
                                 api.book(
                                     token,
                                     key,
@@ -611,6 +758,8 @@ internal fun BarberBookingForm(
                         "Salvando..."
                     } else if (editId != null) {
                         "Salvar alterações"
+                    } else if (repeatWeekly) {
+                        "Confirmar série semanal"
                     } else {
                         "Salvar agendamento"
                     },
@@ -710,6 +859,86 @@ internal fun BarberBookingForm(
                         }
                         Text(formatBrl(service.defaultPrice), color = BarberGold)
                     }
+                }
+            }
+            if (editId == null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = repeatWeekly,
+                        onCheckedChange = { enabled ->
+                            repeatWeekly = enabled
+                            if (enabled && repeatDays.isEmpty()) {
+                                repeatDays = listOf(LocalDate.parse(date).dayOfWeek.value)
+                            }
+                            key = UUID.randomUUID().toString()
+                        }
+                    )
+                    Text("Repetir agendamento toda semana", color = BarberTextPrimary)
+                }
+                if (repeatWeekly) {
+                    Text(
+                        "Escolha os dias da semana (mesmo horário e serviço):",
+                        color = BarberTextSecondary
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom")
+                            .forEachIndexed { index, title ->
+                                val day = index + 1
+                                SelectionChip(title, repeatDays.contains(day)) {
+                                    repeatDays = if (repeatDays.contains(day)) {
+                                        repeatDays - day
+                                    } else {
+                                        (repeatDays + day).sorted()
+                                    }
+                                    key = UUID.randomUUID().toString()
+                                }
+                            }
+                    }
+                    Text("Por quanto tempo?", color = BarberTextPrimary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        listOf(4 to "4 sem", 12 to "12 sem", 26 to "6 meses")
+                            .forEach { (weeks, title) ->
+                                SelectionChip(title, repeatWeeks == weeks) {
+                                    repeatWeeks = weeks
+                                    key = UUID.randomUUID().toString()
+                                }
+                            }
+                    }
+                    if (previewLoading) {
+                        Text("Conferindo todos os horários...", color = BarberTextSecondary)
+                        CircularProgressIndicator(Modifier.size(18.dp), color = BarberGold)
+                    }
+                    recurrencePreview?.let { overview ->
+                        Text(
+                            "Prévia: ${overview.available} horário(s) livre(s) de " +
+                                "${overview.occurrences.size} previstos.",
+                            color = BarberGold
+                        )
+                        if (overview.unavailable > 0) {
+                            val days = overview.occurrences.filter { it.state != "AVAILABLE" }
+                                .take(4).joinToString { it.date }
+                            Text(
+                                "Conflitos em ${overview.unavailable} data(s): $days. " +
+                                    "Altere os dias, o horário ou o período.",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        if (overview.available > 60) {
+                            Text("Máximo permitido: 60 ocorrências.", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                    if (previewError.isNotBlank()) {
+                        Text(previewError, color = MaterialTheme.colorScheme.error)
+                    }
+                    Text(
+                        "A série será salva por inteiro ou não será criada. " +
+                            "Os valores só entram no faturamento ao concluir cada atendimento.",
+                        color = BarberTextSecondary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             }
             Text("Valor", color = BarberTextPrimary, style = MaterialTheme.typography.titleMedium)

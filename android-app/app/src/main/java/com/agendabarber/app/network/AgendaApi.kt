@@ -98,7 +98,8 @@ data class AppointmentView(
     val notes: String?,
     val completedAt: String?,
     val version: Long,
-    val receivedAmount: BigDecimal? = null
+    val receivedAmount: BigDecimal? = null,
+    val recurrenceId: String? = null
 )
 
 data class HistoryItem(
@@ -114,6 +115,32 @@ data class CreateAppointment(
     val startsAt: String,
     val price: BigDecimal?,
     val notes: String?
+)
+
+data class RecurrenceRequest(
+    val clientId: String,
+    val serviceId: String,
+    val startsOn: String,
+    val localTime: String,
+    val weekdays: List<Int>,
+    val weeks: Int,
+    val price: BigDecimal?,
+    val notes: String?
+)
+
+data class RecurrenceOccurrence(val date: String, val startsAt: String?, val state: String)
+
+data class RecurrencePreview(val occurrences: List<RecurrenceOccurrence>, val available: Int, val unavailable: Int)
+
+data class RecurrenceSeries(
+    val id: String,
+    val startsOn: String,
+    val localTime: String,
+    val weekdays: List<Int>,
+    val weeks: Int,
+    val totalAppointments: Long,
+    val scheduledAppointments: Long,
+    val cancelledAt: String?
 )
 
 data class CompleteAppointment(val receivedAmount: BigDecimal)
@@ -193,6 +220,28 @@ interface AgendaApi {
         @Header("Idempotency-Key") key: String,
         @Body request: CreateAppointment
     ): AppointmentView
+
+    @POST("api/v1/appointment-recurrences/preview")
+    suspend fun previewRecurrence(
+        @Header("Authorization") bearer: String,
+        @Body request: RecurrenceRequest
+    ): RecurrencePreview
+
+    @POST("api/v1/appointment-recurrences")
+    suspend fun createRecurrence(
+        @Header("Authorization") bearer: String,
+        @Header("Idempotency-Key") key: String,
+        @Body request: RecurrenceRequest
+    ): RecurrenceSeries
+
+    @GET("api/v1/appointment-recurrences/{id}")
+    suspend fun recurrence(@Header("Authorization") bearer: String, @Path("id") id: String): RecurrenceSeries
+
+    @POST("api/v1/appointment-recurrences/{id}/cancel-future")
+    suspend fun cancelRecurrenceFuture(
+        @Header("Authorization") bearer: String,
+        @Path("id") id: String
+    ): RecurrenceSeries
 
     @PATCH("api/v1/appointments/{id}")
     suspend fun edit(
