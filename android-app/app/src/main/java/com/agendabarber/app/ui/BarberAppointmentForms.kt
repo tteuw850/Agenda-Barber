@@ -121,6 +121,7 @@ internal fun BarberAppointmentDetails(
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var confirmCancel by remember { mutableStateOf(false) }
+    var confirmCancelSeries by remember { mutableStateOf(false) }
     var confirmComplete by remember { mutableStateOf(false) }
     var receivedInput by remember(id) { mutableStateOf("") }
     val scope = rememberCoroutineScope()
@@ -217,6 +218,43 @@ internal fun BarberAppointmentDetails(
             dismissButton = { TextButton(onClick = { confirmCancel = false }) { Text("Voltar") } }
         )
     }
+    if (confirmCancelSeries) {
+        AlertDialog(
+            onDismissRequest = { if (!busy) confirmCancelSeries = false },
+            title = { Text("Cancelar os próximos agendamentos?") },
+            text = {
+                Text(
+                    "Serão cancelados somente os horários futuros ainda agendados desta série. " +
+                        "Atendimentos concluídos e históricos serão preservados."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !busy,
+                    onClick = {
+                        val seriesId = appointment?.recurrenceId ?: return@TextButton
+                        busy = true
+                        scope.launch {
+                            try {
+                                api.cancelRecurrenceFuture(token, seriesId)
+                                confirmCancelSeries = false
+                                refreshAfterAction()
+                            } catch (failure: Exception) {
+                                error = apiMessage(failure)
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    }
+                ) { Text("Cancelar próximos", color = BarberCancelAction) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmCancelSeries = false }) {
+                    Text("Voltar")
+                }
+            }
+        )
+    }
     Scaffold(
         containerColor = BarberBackground,
         bottomBar = {
@@ -269,7 +307,25 @@ internal fun BarberAppointmentDetails(
                         border = BorderStroke(1.dp, BarberCancelAction),
                         enabled = !busy,
                         onClick = { confirmCancel = true }
-                    ) { Text("Cancelar agendamento", color = BarberCancelAction) }
+                    ) {
+                        Text(
+                            if (current.recurrenceId != null) {
+                                "Cancelar só este atendimento"
+                            } else {
+                                "Cancelar agendamento"
+                            },
+                            color = BarberCancelAction
+                        )
+                    }
+                    if (current.recurrenceId != null) {
+                        TextButton(
+                            enabled = !busy,
+                            onClick = { confirmCancelSeries = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Cancelar todos os próximos da série", color = BarberCancelAction)
+                        }
+                    }
                 }
             }
         }
@@ -354,6 +410,12 @@ internal fun BarberAppointmentDetails(
                             " · " + current.durationMinutes + " min"
                     )
                     DetailRow(Icons.Outlined.ContentCut, "Serviço", current.serviceName)
+                    if (current.recurrenceId != null) {
+                        Text(
+                            "Agendamento recorrente · alterações nesta tela afetam apenas este dia.",
+                            color = BarberGold
+                        )
+                    }
                     DetailRow(Icons.Outlined.AttachMoney, "Preço agendado", formatBrl(current.price))
                     if (current.status == "COMPLETED") {
                         DetailRow(
