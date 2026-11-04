@@ -62,7 +62,6 @@ import com.agendabarber.app.ui.theme.BarberBackground
 import com.agendabarber.app.ui.theme.BarberGold
 import com.agendabarber.app.ui.theme.BarberOnGold
 import com.agendabarber.app.ui.theme.BarberOutline
-import com.agendabarber.app.ui.theme.BarberSurface
 import com.agendabarber.app.ui.theme.BarberTextPrimary
 import com.agendabarber.app.ui.theme.BarberTextSecondary
 import java.io.File
@@ -84,13 +83,14 @@ internal data class BarberLocalProfile(
     val photoRevision: Long = 0L
 )
 
-internal fun validBarberProfile(profile: BarberLocalProfile): Boolean =
-    profile.name.trim().length in 2..100 &&
-        profile.businessName.trim().length <= 100 &&
-        profile.notes.trim().length <= 500 &&
-        (profile.phone.isBlank() || profile.phone.filter(Char::isDigit).length in 10..11) &&
-        (profile.email.isBlank() ||
-            (profile.email.length <= 254 && Patterns.EMAIL_ADDRESS.matcher(profile.email.trim()).matches()))
+internal fun validBarberProfile(profile: BarberLocalProfile): Boolean = profile.name.trim().length in 2..100 &&
+    profile.businessName.trim().length <= 100 &&
+    profile.notes.trim().length <= 500 &&
+    (profile.phone.isBlank() || profile.phone.filter(Char::isDigit).length in 10..11) &&
+    (
+        profile.email.isBlank() ||
+            (profile.email.length <= 254 && Patterns.EMAIL_ADDRESS.matcher(profile.email.trim()).matches())
+        )
 
 internal class BarberProfileStore(private val context: Context, token: String) {
     private val scope: String = run {
@@ -155,9 +155,13 @@ internal class BarberProfileStore(private val context: Context, token: String) {
 private fun decodeProfileBitmap(context: Context, uri: Uri): Bitmap? {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-    if (bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
-        bounds.outWidth > 16384 || bounds.outHeight > 16384
-    ) return null
+    if (bounds.outWidth <= 0 ||
+        bounds.outHeight <= 0 ||
+        bounds.outWidth > 16384 ||
+        bounds.outHeight > 16384
+    ) {
+        return null
+    }
     var sample = 1
     while (maxOf(bounds.outWidth / sample, bounds.outHeight / sample) > 1024) sample *= 2
     val options = BitmapFactory.Options().apply { inSampleSize = sample }
@@ -177,12 +181,7 @@ private fun decodeProfileBitmap(context: Context, uri: Uri): Bitmap? {
 }
 
 @Composable
-internal fun BarberProfileAvatar(
-    photoPath: String?,
-    photoRevision: Long,
-    size: Dp,
-    modifier: Modifier = Modifier
-) {
+internal fun BarberProfileAvatar(photoPath: String?, photoRevision: Long, size: Dp, modifier: Modifier = Modifier) {
     val photo = remember(photoPath, photoRevision) {
         photoPath?.let { path -> runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull() }
     }
@@ -194,7 +193,12 @@ internal fun BarberProfileAvatar(
     ) {
         Box(contentAlignment = Alignment.Center) {
             if (photo != null) {
-                Image(photo, "Foto do barbeiro", Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                Image(
+                    photo,
+                    "Foto do barbeiro",
+                    Modifier.fillMaxSize().clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
             } else {
                 Icon(Icons.Outlined.PersonOutline, "Foto não cadastrada", tint = BarberGold)
             }
@@ -254,7 +258,8 @@ internal fun BarberProfileScreen(
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             if (photoPreview != null && !removePhoto) {
                 Image(
-                    photoPreview, "Nova foto de perfil",
+                    photoPreview,
+                    "Nova foto de perfil",
                     Modifier.size(112.dp).clip(CircleShape),
                     contentScale = ContentScale.Crop
                 )
@@ -276,37 +281,55 @@ internal fun BarberProfileScreen(
                 Text("Escolher foto", color = BarberGold)
             }
             if (newPhoto != null || initial.photoPath != null) {
-                TextButton(onClick = { newPhoto = null; removePhoto = true }, enabled = !saving) {
+                TextButton(onClick = {
+                    newPhoto = null
+                    removePhoto = true
+                }, enabled = !saving) {
                     Text("Remover foto", color = BarberTextSecondary)
                 }
             }
         }
         OutlinedTextField(
-            value = name, onValueChange = { name = it.take(100) },
-            label = { Text("Nome completo") }, singleLine = true,
-            modifier = Modifier.fillMaxWidth(), enabled = !saving
+            value = name,
+            onValueChange = { name = it.take(100) },
+            label = { Text("Nome completo") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
         )
         OutlinedTextField(
-            value = businessName, onValueChange = { businessName = it.take(100) },
-            label = { Text("Nome da barbearia (opcional)") }, singleLine = true,
-            modifier = Modifier.fillMaxWidth(), enabled = !saving
+            value = businessName,
+            onValueChange = { businessName = it.take(100) },
+            label = { Text("Nome da barbearia (opcional)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
         )
         OutlinedTextField(
-            value = phone, onValueChange = { phone = it.take(20) },
-            label = { Text("Telefone / WhatsApp (opcional)") }, singleLine = true,
+            value = phone,
+            onValueChange = { phone = it.take(20) },
+            label = { Text("Telefone / WhatsApp (opcional)") },
+            singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-            modifier = Modifier.fillMaxWidth(), enabled = !saving
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
         )
         OutlinedTextField(
-            value = email, onValueChange = { email = it.take(254) },
-            label = { Text("E-mail (opcional)") }, singleLine = true,
+            value = email,
+            onValueChange = { email = it.take(254) },
+            label = { Text("E-mail (opcional)") },
+            singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            modifier = Modifier.fillMaxWidth(), enabled = !saving
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
         )
         OutlinedTextField(
-            value = notes, onValueChange = { notes = it.take(500) },
-            label = { Text("Sobre o barbeiro (opcional)") }, minLines = 3,
-            modifier = Modifier.fillMaxWidth(), enabled = !saving
+            value = notes,
+            onValueChange = { notes = it.take(500) },
+            label = { Text("Sobre o barbeiro (opcional)") },
+            minLines = 3,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
         )
         Text(
             "Estes dados e a foto são salvos apenas neste dispositivo. " +
@@ -337,7 +360,9 @@ internal fun BarberProfileScreen(
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = BarberGold)
         ) {
-            if (saving) CircularProgressIndicator(Modifier.size(20.dp)) else {
+            if (saving) {
+                CircularProgressIndicator(Modifier.size(20.dp))
+            } else {
                 Text("Salvar perfil", color = BarberOnGold, fontWeight = FontWeight.Bold)
             }
         }
