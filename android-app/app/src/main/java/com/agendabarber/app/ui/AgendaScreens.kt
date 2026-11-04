@@ -101,13 +101,13 @@ fun AgendaApp() {
                     contentScale = ContentScale.Fit
                 )
                 Text(
-                    "BARBER",
+                    "AGENDA",
                     color = Color.White,
                     style = MaterialTheme.typography.headlineLarge,
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
                 Text(
-                    "AGENDA",
+                    "BARBER",
                     color = Color.White,
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.align(Alignment.CenterHorizontally)
