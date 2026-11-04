@@ -11,12 +11,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Visibility
@@ -94,11 +94,11 @@ fun AgendaApp() {
                 modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(24.dp),
                 verticalArrangement = Arrangement.Center
             ) {
-                Icon(
-                    Icons.Outlined.ContentCut,
-                    null,
-                    tint = BarberGold,
-                    modifier = Modifier.align(Alignment.CenterHorizontally).height(56.dp)
+                Image(
+                    painter = painterResource(R.mipmap.ic_launcher),
+                    contentDescription = "Logo Agenda Barber",
+                    modifier = Modifier.align(Alignment.CenterHorizontally).size(92.dp),
+                    contentScale = ContentScale.Fit
                 )
                 Text(
                     "BARBER",
@@ -180,7 +180,6 @@ fun AgendaApp() {
                         }
                     }
                 ) { Text(if (busy) "Conectando..." else "Entrar") }
-                Text("Acesso seguro ao Agenda Barber. Senha não é armazenada no aparelho.")
             }
         }
         return
