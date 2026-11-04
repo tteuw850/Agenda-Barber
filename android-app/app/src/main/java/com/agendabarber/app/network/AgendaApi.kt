@@ -182,7 +182,8 @@ interface AgendaApi {
         @Header("Authorization") bearer: String,
         @Query("date") date: String,
         @Query("view") view: String,
-        @Query("status") status: String
+        @Query("status") status: String,
+        @Query("limit") limit: Int
     ): List<AppointmentView>
 
     @GET("api/v1/appointments/{id}")
