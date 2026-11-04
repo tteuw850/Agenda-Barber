@@ -32,8 +32,8 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -596,9 +596,13 @@ internal fun BarberBookingForm(
         previewCheckedKey = ""
         recurrencePreview = null
         previewError = ""
-        if (repeatWeekly && editId == null && clientId.isNotBlank() &&
-            serviceId.isNotBlank() && selectedStart.isNotBlank() &&
-            validDate(date) && repeatDays.isNotEmpty()
+        if (repeatWeekly &&
+            editId == null &&
+            clientId.isNotBlank() &&
+            serviceId.isNotBlank() &&
+            selectedStart.isNotBlank() &&
+            validDate(date) &&
+            repeatDays.isNotEmpty()
         ) {
             previewLoading = true
             try {
@@ -608,8 +612,14 @@ internal fun BarberBookingForm(
                 recurrencePreview = api.previewRecurrence(
                     token,
                     RecurrenceRequest(
-                        clientId, serviceId, date, startTime, repeatDays.sorted(),
-                        repeatWeeks, null, null
+                        clientId,
+                        serviceId,
+                        date,
+                        startTime,
+                        repeatDays.sorted(),
+                        repeatWeeks,
+                        null,
+                        null
                     )
                 )
                 previewCheckedKey = previewKey
@@ -654,11 +664,17 @@ internal fun BarberBookingForm(
         selectedStart.isNotBlank() &&
         priceValid &&
         notes.length <= 2000 &&
-        (!repeatWeekly || editId != null || (
-            repeatDays.isNotEmpty() && !previewLoading &&
-                previewCheckedKey == previewKey && recurrencePreview != null &&
-                recurrencePreview?.unavailable == 0
-            ))
+        (
+            !repeatWeekly ||
+                editId != null ||
+                (
+                    repeatDays.isNotEmpty() &&
+                        !previewLoading &&
+                        previewCheckedKey == previewKey &&
+                        recurrencePreview != null &&
+                        recurrencePreview?.unavailable == 0
+                    )
+            )
     Scaffold(
         containerColor = BarberBackground,
         bottomBar = {
@@ -677,9 +693,14 @@ internal fun BarberBookingForm(
                                     token,
                                     key,
                                     RecurrenceRequest(
-                                        clientId, serviceId, date, localTime,
-                                        repeatDays.sorted(), repeatWeeks,
-                                        amount, notes.ifBlank { null }
+                                        clientId,
+                                        serviceId,
+                                        date,
+                                        localTime,
+                                        repeatDays.sorted(),
+                                        repeatWeeks,
+                                        amount,
+                                        notes.ifBlank { null }
                                     )
                                 )
                             } else if (editId == null) {

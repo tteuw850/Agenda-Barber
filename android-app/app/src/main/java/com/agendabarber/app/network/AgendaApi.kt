@@ -128,17 +128,9 @@ data class RecurrenceRequest(
     val notes: String?
 )
 
-data class RecurrenceOccurrence(
-    val date: String,
-    val startsAt: String?,
-    val state: String
-)
+data class RecurrenceOccurrence(val date: String, val startsAt: String?, val state: String)
 
-data class RecurrencePreview(
-    val occurrences: List<RecurrenceOccurrence>,
-    val available: Int,
-    val unavailable: Int
-)
+data class RecurrencePreview(val occurrences: List<RecurrenceOccurrence>, val available: Int, val unavailable: Int)
 
 data class RecurrenceSeries(
     val id: String,
@@ -243,10 +235,7 @@ interface AgendaApi {
     ): RecurrenceSeries
 
     @GET("api/v1/appointment-recurrences/{id}")
-    suspend fun recurrence(
-        @Header("Authorization") bearer: String,
-        @Path("id") id: String
-    ): RecurrenceSeries
+    suspend fun recurrence(@Header("Authorization") bearer: String, @Path("id") id: String): RecurrenceSeries
 
     @POST("api/v1/appointment-recurrences/{id}/cancel-future")
     suspend fun cancelRecurrenceFuture(
