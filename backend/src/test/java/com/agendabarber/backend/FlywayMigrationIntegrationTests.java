@@ -37,7 +37,7 @@ class FlywayMigrationIntegrationTests {
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration")
                 .load();
-        assertEquals(8, flyway.migrate().migrationsExecuted);
+        assertEquals(9, flyway.migrate().migrationsExecuted);
         assertTrue(flyway.validateWithResult().validationSuccessful);
     }
 
