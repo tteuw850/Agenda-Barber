@@ -17,18 +17,7 @@ CREATE TABLE appointment_recurrences (
     cancelled_at TIMESTAMPTZ,
     CONSTRAINT weekly_length_check CHECK (weeks IN (4,12,26)),
     CONSTRAINT weekly_days_check CHECK (
-        weekdays ~ '^[1-7](,[1-7]){0,6}
-    ),
-    CONSTRAINT weekly_notes_check CHECK (notes IS NULL OR length(notes) <= 2000),
-    CONSTRAINT weekly_price_check CHECK (price IS NULL OR price >= 0),
-    CONSTRAINT weekly_idempotency UNIQUE (user_id,request_key)
-);
-CREATE INDEX appointment_recurrences_tenant ON appointment_recurrences(barber_id,created_at DESC);
-ALTER TABLE appointments
-    ADD COLUMN recurrence_id UUID REFERENCES appointment_recurrences(id);
-CREATE INDEX appointments_recurrence_future
-    ON appointments(barber_id,recurrence_id,starts_at) WHERE recurrence_id IS NOT NULL;
-
+        weekdays ~ '^[1-7](,[1-7]){0,6}$'
     ),
     CONSTRAINT weekly_notes_check CHECK (notes IS NULL OR length(notes) <= 2000),
     CONSTRAINT weekly_price_check CHECK (price IS NULL OR price >= 0),
