@@ -28,7 +28,7 @@ public final class AppointmentDtos {
             UUID serviceId, String serviceName, int durationMinutes, BigDecimal price,
             Instant startsAt, Instant endsAt, String status, String notes,
             Instant completedAt, long version, Instant createdAt, Instant updatedAt,
-            BigDecimal receivedAmount) {
+            BigDecimal receivedAmount, UUID recurrenceId) {
     }
 
     public record HistoryItem(
