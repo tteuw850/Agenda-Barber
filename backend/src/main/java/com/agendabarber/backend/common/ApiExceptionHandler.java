@@ -152,6 +152,26 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, "Not found", "Barber not found.");
     }
 
+    @ExceptionHandler(com.agendabarber.backend.appointments.AppointmentRecurrenceService.InvalidRecurrenceException.class)
+    ResponseEntity<ProblemDetail> invalidRecurrence(
+            com.agendabarber.backend.appointments.AppointmentRecurrenceService.InvalidRecurrenceException ignored) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid recurrence",
+                "Select weekdays, time and a period of 4, 12 or 26 weeks (maximum 60 occurrences).");
+    }
+
+    @ExceptionHandler(com.agendabarber.backend.appointments.AppointmentRecurrenceService.RecurrenceNotFoundException.class)
+    ResponseEntity<ProblemDetail> missingRecurrence(
+            com.agendabarber.backend.appointments.AppointmentRecurrenceService.RecurrenceNotFoundException ignored) {
+        return problem(HttpStatus.NOT_FOUND, "Not found", "Recurring booking series not found.");
+    }
+
+    @ExceptionHandler(com.agendabarber.backend.appointments.AppointmentRecurrenceService.RecurrenceConflictException.class)
+    ResponseEntity<ProblemDetail> recurrenceConflict(
+            com.agendabarber.backend.appointments.AppointmentRecurrenceService.RecurrenceConflictException ignored) {
+        return problem(HttpStatus.CONFLICT, "Conflict",
+                "One or more recurring appointments are unavailable; no appointment was created.");
+    }
+
     @ExceptionHandler(AppointmentService.AppointmentNotFoundException.class)
     ResponseEntity<ProblemDetail> missingAppointment(AppointmentService.AppointmentNotFoundException ignored) {
         return problem(HttpStatus.NOT_FOUND, "Not found", "Appointment or selection not found.");
