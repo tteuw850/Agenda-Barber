@@ -27,7 +27,7 @@ class AgendaRepository(private val api: AgendaApi, private val dao: AgendaCacheD
     suspend fun appointments(token: String, date: String, view: String, status: String): AgendaLoadResult {
         val key = cacheKey(token, date, view, status)
         try {
-            val live = api.appointments(token, date, view, status)
+            val live = api.appointments(token, date, view, status, if (view == "month") 500 else 100)
             val synchronizedAt = System.currentTimeMillis()
             // Cached writes must not prevent showing successfully retrieved server data.
             runCatching {
