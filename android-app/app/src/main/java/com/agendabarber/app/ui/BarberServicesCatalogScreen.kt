@@ -1,5 +1,6 @@
 package com.agendabarber.app.ui
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,6 +66,8 @@ import java.math.BigDecimal
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import retrofit2.HttpException
 
 internal enum class BarberServiceIcon(val label: String) {
     SCISSORS("Corte"),
@@ -112,17 +115,30 @@ internal fun BarberServicesCatalogScreen(api: AgendaApi, token: String, onBack: 
     var changingId by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(api, token, revision) {
+    LaunchedEffect(token, revision) {
+        Log.i("AgendaBarberScreen", "services load-start revision=$revision")
         loading = true
         error = ""
         try {
-            services = api.services(token, activeOnly = false)
+            val result = withTimeoutOrNull(20_000L) {
+                api.services(token, activeOnly = false)
+            }
+            if (result == null) {
+                error = "Tempo esgotado ao carregar serviços. Verifique a rede e tente novamente."
+            } else {
+                services = result
+            }
         } catch (cancelled: CancellationException) {
+            Log.i("AgendaBarberScreen", "services load-cancelled")
             throw cancelled
         } catch (failure: Exception) {
-            error = "Não foi possível carregar os serviços. Verifique sua conexão."
+            error = when ((failure as? HttpException)?.code()) {
+                401, 403 -> "Sessão expirada ou acesso negado. Saia e entre novamente."
+                else -> "Não foi possível carregar os serviços. Verifique sua conexão."
+            }
         } finally {
             loading = false
+            Log.i("AgendaBarberScreen", "services load-finished")
         }
     }
 
@@ -152,7 +168,13 @@ internal fun BarberServicesCatalogScreen(api: AgendaApi, token: String, onBack: 
                 Text("Novo")
             }
         }
-        if (loading) CircularProgressIndicator(color = BarberGold)
+        if (loading) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(color = BarberGold, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(12.dp))
+                Text("Sincronizando servicos com a API...", color = BarberTextSecondary)
+            }
+        }
         if (error.isNotBlank()) {
             Text(error, color = MaterialTheme.colorScheme.error)
             TextButton(onClick = { revision++ }) { Text("Tentar novamente") }

@@ -62,6 +62,7 @@ internal object BarberRoute {
     const val BOOKING = "booking"
     const val STATS = "statistics"
     const val MORE = "more"
+    const val PROFILE = "barber-profile"
     const val NEW_CLIENT = "new-client"
     const val SERVICES = "services"
     const val BLOCK_TIME = "block-time"
@@ -95,6 +96,8 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
     val entry by navigation.currentBackStackEntryAsState()
     val route = entry?.destination?.route ?: BarberRoute.AGENDA
     var revision by remember { mutableStateOf(0) }
+    val profileStore = remember(context, token) { BarberProfileStore(context.applicationContext, token) }
+    var barberProfile by remember(profileStore) { mutableStateOf(profileStore.load()) }
 
     Scaffold(
         containerColor = BarberBackground,
@@ -230,14 +233,24 @@ internal fun BarberAuthenticatedApp(api: AgendaApi, token: String, onLogout: () 
             composable(BarberRoute.STATS) {
                 BarberStatisticsScreen(statisticsRepository, token, revision)
             }
+            composable(BarberRoute.PROFILE) {
+                BarberProfileScreen(
+                    store = profileStore,
+                    initial = barberProfile,
+                    onBack = { navigation.popBackStack() },
+                    onSaved = { updated ->
+                        barberProfile = updated
+                        navigation.popBackStack()
+                    }
+                )
+            }
             composable(BarberRoute.MORE) {
-                val lastCacheWriteAt by repository.lastCacheWriteAt.collectAsState()
                 BarberMoreSettingsScreen(
-                    lastCacheWriteAt = lastCacheWriteAt,
+                    profile = barberProfile,
+                    onProfile = { navigation.navigate(BarberRoute.PROFILE) },
                     onWorkingHours = { navigation.navigate(BarberRoute.WORKING_HOURS) },
                     onServices = { navigation.navigate(BarberRoute.SERVICES) },
                     onBlocks = { navigation.navigate(BarberRoute.BLOCK_TIME) },
-                    onExpenses = { navigation.navigate(BarberRoute.EXPENSES) },
                     onLogout = {
                         scope.launch {
                             try {

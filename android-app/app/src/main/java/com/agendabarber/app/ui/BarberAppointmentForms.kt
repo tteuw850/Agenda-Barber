@@ -510,6 +510,7 @@ internal fun BarberBookingForm(
     var loading by remember { mutableStateOf(editId != null) }
     var busy by remember { mutableStateOf(false) }
     var slotsLoading by remember { mutableStateOf(false) }
+    var slotsError by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     var conflict by remember { mutableStateOf(false) }
     var pickerVisible by remember { mutableStateOf(false) }
@@ -572,6 +573,8 @@ internal fun BarberBookingForm(
     LaunchedEffect(token, date, serviceId, reloadSlots) {
         if (serviceId.isNotBlank() && validDate(date)) {
             slotsLoading = true
+            slotsError = ""
+            slots = emptyList()
             try {
                 val available = api.slots(token, date, serviceId)
                 val old = original
@@ -583,13 +586,19 @@ internal fun BarberBookingForm(
                 } else {
                     available
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (failure: Exception) {
-                error = apiMessage(failure)
+                slotsError = apiMessage(failure)
+                slots = emptyList()
+                selectedStart = ""
             } finally {
                 slotsLoading = false
             }
         } else {
             slots = emptyList()
+            slotsError = ""
+            slotsLoading = false
         }
     }
     LaunchedEffect(token, previewKey, repeatWeekly, editId) {
@@ -823,7 +832,13 @@ internal fun BarberBookingForm(
             Text("Horário", color = BarberTextPrimary, style = MaterialTheme.typography.titleMedium)
             if (serviceId.isEmpty()) Text("Escolha um serviço para consultar horários.", color = BarberTextSecondary)
             if (slotsLoading) CircularProgressIndicator(Modifier.size(18.dp), color = BarberGold)
-            if (!slotsLoading && serviceId.isNotEmpty() && slots.isEmpty()) {
+            if (!slotsLoading && serviceId.isNotEmpty() && slotsError.isNotBlank()) {
+                Text(slotsError, color = MaterialTheme.colorScheme.error)
+                TextButton(onClick = { reloadSlots++ }) {
+                    Text("Tentar consultar horários novamente", color = BarberGold)
+                }
+            }
+            if (!slotsLoading && serviceId.isNotEmpty() && slotsError.isBlank() && slots.isEmpty()) {
                 Text("Nenhum horário livre nesta data.", color = BarberTextSecondary)
             }
             Row(
