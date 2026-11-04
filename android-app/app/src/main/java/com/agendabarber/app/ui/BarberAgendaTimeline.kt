@@ -94,10 +94,13 @@ internal fun BarberAgendaTimeline(
     var refresh by rememberSaveable { mutableIntStateOf(0) }
     var pickerOpen by rememberSaveable { mutableStateOf(false) }
     val selected = remember(date) { LocalDate.parse(date) }
+    // The selected date changes the visible cards immediately; changing a date in the
+    // same month must not download the entire month again.
+    val queryDate = if (period == "month") selected.withDayOfMonth(1).toString() else date
     val vm: AgendaViewModel = viewModel(factory = remember(repository) { AgendaViewModel.Factory(repository) })
     val state by vm.state.collectAsState()
-    LaunchedEffect(token, date, period, filter, refresh, revision) {
-        vm.refresh(token, date, period, filter)
+    LaunchedEffect(token, queryDate, period, filter, refresh, revision) {
+        vm.refresh(token, queryDate, period, filter)
     }
     if (pickerOpen) {
         val picker = androidx.compose.material3.rememberDatePickerState(
@@ -118,6 +121,9 @@ internal fun BarberAgendaTimeline(
     }
     val appointments = remember(state.appointments) { state.appointments.sortedBy { it.startsAt } }
     val grouped = remember(appointments) { appointments.groupBy { it.localDate() } }
+    val visibleAppointments = remember(appointments, selected, period) {
+        if (period == "month") appointmentsForSelectedDay(appointments, selected) else appointments
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().background(BarberBackground).padding(horizontal = 16.dp),
@@ -273,7 +279,7 @@ internal fun BarberAgendaTimeline(
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(Modifier.width(10.dp))
-            Text(appointments.size.toString(), color = BarberGold)
+            Text(visibleAppointments.size.toString(), color = BarberGold)
             Spacer(Modifier.weight(1f))
             IconButton(onClick = { refresh++ }) {
                 Icon(Icons.Outlined.Refresh, contentDescription = "Atualizar agenda", tint = BarberGold)
@@ -318,11 +324,11 @@ internal fun BarberAgendaTimeline(
                     AgendaMonthGrid(selected, grouped) { date = it.toString() }
                 }
             }
-            if (!state.loading && state.error.isBlank() && appointments.isEmpty()) {
+            if (!state.loading && state.error.isBlank() && visibleAppointments.isEmpty()) {
                 item {
                     val message = when (period) {
                         "week" -> "Nenhum agendamento nesta semana."
-                        "month" -> "Nenhum agendamento neste mês."
+                        "month" -> "Nenhum agendamento para o dia selecionado."
                         else -> "Nenhum agendamento para este dia."
                     }
                     Surface(
@@ -365,7 +371,19 @@ internal fun BarberAgendaTimeline(
                     }
                 }
             }
-            if (period != "day" && appointments.isNotEmpty()) {
+            if (period == "month" && visibleAppointments.isNotEmpty()) {
+                item {
+                    Text(
+                        selected.format(dateTitle).replaceFirstChar { it.titlecase(brazil) },
+                        color = BarberGold,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                items(visibleAppointments, key = { it.id }) { appointment ->
+                    AgendaTimelineCard(appointment) { onDetails(appointment.id) }
+                }
+            }
+            if (period == "week" && appointments.isNotEmpty()) {
                 items(grouped.keys.sorted()) { day ->
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
@@ -503,6 +521,11 @@ private fun AgendaTimelineCard(item: AppointmentView, onClick: () -> Unit) {
         }
     }
 }
+
+internal fun appointmentsForSelectedDay(
+    appointments: List<AppointmentView>,
+    selected: LocalDate
+): List<AppointmentView> = appointments.filter { it.localDate() == selected }
 
 private fun AppointmentView.localDate(): LocalDate = Instant.parse(startsAt).atZone(agendaZone).toLocalDate()
 
