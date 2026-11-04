@@ -1,6 +1,5 @@
 package com.agendabarber.backend.appointments;
 
-import com.agendabarber.backend.scheduling.AgendaSchedulingService;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -15,13 +14,13 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,11 +70,12 @@ public class AppointmentRecurrenceService {
     }
 
     private final JdbcTemplate jdbc;
-    private final AgendaSchedulingService scheduler;
 
-    public AppointmentRecurrenceService(JdbcTemplate jdbc, AgendaSchedulingService scheduler) {
+    public AppointmentRecurrenceService(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
-        this.scheduler = scheduler;
+    }
+
+    private record NewBooking(UUID id, Occurrence occurrence) {
     }
 
     /** Pure expansion in the barber's local calendar; caps guard against runaways. */
@@ -229,14 +229,45 @@ public class AppointmentRecurrenceService {
                 request.weekdays().stream().sorted().map(String::valueOf)
                         .reduce((a, b) -> a + "," + b).orElseThrow(),
                 request.weeks(), request.price(), request.notes(), key, fingerprint);
-        for (Occurrence occurrence : check.occurrences()) {
-            String internalKey = "repeat:" + id + ":" + occurrence.date();
-            UUID appointmentId = scheduler.bookAtomic(
-                    barberId, userId, request.clientId(), request.serviceId(),
-                    occurrence.startsAt(), request.price(), request.notes(),
-                    internalKey, hash(fingerprint + "|" + occurrence.date()));
-            jdbc.update("UPDATE appointments SET recurrence_id=? WHERE barber_id=? AND id=?",
-                    id, barberId, appointmentId);
+        // Under the same barber lock, write the bounded series in two JDBC batches.
+        // The PostgreSQL exclusion constraint remains the last concurrency safeguard.
+        var service = jdbc.queryForMap(
+                "SELECT name,duration_minutes,default_price FROM services "
+                        + "WHERE barber_id=? AND id=? AND active=true",
+                barberId, request.serviceId());
+        String serviceName = (String) service.get("name");
+        int durationMinutes = ((Number) service.get("duration_minutes")).intValue();
+        BigDecimal price = request.price() == null
+                ? (BigDecimal) service.get("default_price") : request.price();
+        List<NewBooking> bookings = check.occurrences().stream()
+                .map(occurrence -> new NewBooking(UUID.randomUUID(), occurrence)).toList();
+        try {
+            jdbc.batchUpdate("INSERT INTO appointments "
+                            + "(id,barber_id,client_id,service_id,starts_at,ends_at,"
+                            + "service_name_snapshot,price_snapshot,notes,status,recurrence_id) "
+                            + "VALUES(?,?,?,?,?,?,?,?,?,'SCHEDULED'::appointment_status,?)",
+                    bookings, bookings.size(), (ps, booking) -> {
+                        ps.setObject(1, booking.id());
+                        ps.setObject(2, barberId);
+                        ps.setObject(3, request.clientId());
+                        ps.setObject(4, request.serviceId());
+                        ps.setObject(5, utc(booking.occurrence().startsAt()));
+                        ps.setObject(6, utc(booking.occurrence().startsAt()
+                                .plus(Duration.ofMinutes(durationMinutes))));
+                        ps.setString(7, serviceName);
+                        ps.setBigDecimal(8, price);
+                        ps.setString(9, request.notes());
+                        ps.setObject(10, id);
+                    });
+            jdbc.batchUpdate("INSERT INTO appointment_events "
+                            + "(barber_id,appointment_id,event_type,previous_status,new_status) "
+                            + "VALUES(?,?,'CREATED',NULL,'SCHEDULED'::appointment_status)",
+                    bookings, bookings.size(), (ps, booking) -> {
+                        ps.setObject(1, barberId);
+                        ps.setObject(2, booking.id());
+                    });
+        } catch (DataIntegrityViolationException collision) {
+            throw new RecurrenceConflictException();
         }
         return get(barberId, id);
     }
