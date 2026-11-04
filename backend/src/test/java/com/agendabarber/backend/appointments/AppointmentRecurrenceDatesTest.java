@@ -24,7 +24,7 @@ class AppointmentRecurrenceDatesTest {
                 request(LocalDate.of(2027, 6, 7), List.of(4, 5), 4));
         assertEquals(8, dates.size());
         assertEquals(LocalDate.of(2027, 6, 10), dates.getFirst());
-        assertEquals(LocalDate.of(2027, 6, 77), dates.getLast());
+        assertEquals(LocalDate.of(2027, 7, 2), dates.getLast());
     }
 
     @Test
