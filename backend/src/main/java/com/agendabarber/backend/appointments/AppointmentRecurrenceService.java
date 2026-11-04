@@ -330,7 +330,9 @@ public class AppointmentRecurrenceService {
     private ZoneId zone(UUID barberId) {
         String zone = jdbc.queryForObject("SELECT timezone FROM barbers WHERE id=?",
                 String.class, barberId);
-        if (zone == null) throw new RecurrenceNotFoundException();
+        if (zone == null) {
+            throw new RecurrenceNotFoundException();
+        }
         return ZoneId.of(zone);
     }
 
