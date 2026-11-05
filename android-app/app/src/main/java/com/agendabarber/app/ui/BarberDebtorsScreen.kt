@@ -124,15 +124,15 @@ internal fun BarberDebtorsScreen(api: AgendaApi, token: String, onBack: () -> Un
         Text("Devedores", color = BarberTextPrimary, fontWeight = FontWeight.Bold)
         Text("Controle de valores pendentes", color = BarberTextSecondary)
         if (debtorsAvailable) {
+            val total = debtors.fold(BigDecimal.ZERO) { sum, item ->
+                sum + item.balance
+            }
             Text(
-            "Clientes com dívida: ${debtors.size} • Total: ${formatBrl(
-                debtors.fold(BigDecimal.ZERO) { sum, item ->
-                    sum + item.balance
-                }
-            )}",
-            color = BarberGold,
-            fontWeight = FontWeight.Bold
-        )
+                "Clientes com dívida: ${debtors.size} • Total: ${formatBrl(total)}",
+                color = BarberGold,
+                fontWeight = FontWeight.Bold
+            )
+        }
         if (!debtorsAvailable && !loading) {
             Text("Saldo indisponível: API DEV ainda não atualizada.", color = BarberTextSecondary)
         }
