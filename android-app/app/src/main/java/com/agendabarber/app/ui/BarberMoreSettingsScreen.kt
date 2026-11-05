@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.ArrowForwardIos
 import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.ContentCut
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Logout
@@ -95,6 +96,7 @@ internal fun BarberMoreSettingsScreen(
     onProfile: () -> Unit,
     onWorkingHours: () -> Unit,
     onServices: () -> Unit,
+    onDebtors: () -> Unit,
     onBlocks: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -167,6 +169,11 @@ internal fun BarberMoreSettingsScreen(
             title = "Serviços",
             icon = Icons.Outlined.ContentCut,
             onClick = onServices
+        )
+        MoreMenuItem(
+            title = "Devedores",
+            icon = Icons.Outlined.AccountBalanceWallet,
+            onClick = onDebtors
         )
         MoreMenuItem(
             title = "Bloquear horário",
