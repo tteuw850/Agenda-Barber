@@ -9,8 +9,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -120,7 +120,11 @@ internal fun BarberDebtorsScreen(api: AgendaApi, token: String, onBack: () -> Un
         Text("Devedores", color = BarberTextPrimary, fontWeight = FontWeight.Bold)
         Text("Controle de valores pendentes", color = BarberTextSecondary)
         Text(
-            "Clientes com dívida: ${debtors.size} • Total: ${formatBrl(debtors.fold(BigDecimal.ZERO) { sum, item -> sum + item.balance })}",
+            "Clientes com dívida: ${debtors.size} • Total: ${formatBrl(
+                debtors.fold(BigDecimal.ZERO) { sum, item ->
+                    sum + item.balance
+                }
+            )}",
             color = BarberGold,
             fontWeight = FontWeight.Bold
         )

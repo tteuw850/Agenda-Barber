@@ -38,7 +38,12 @@ data class ClientView(
 )
 data class DebtSummary(val clientId: String, val clientName: String, val balance: BigDecimal)
 data class DebtEntry(val id: String, val kind: String, val amount: BigDecimal, val note: String?, val createdAt: String)
-data class DebtDetail(val clientId: String, val clientName: String, val balance: BigDecimal, val entries: List<DebtEntry>)
+data class DebtDetail(
+    val clientId: String,
+    val clientName: String,
+    val balance: BigDecimal,
+    val entries: List<DebtEntry>
+)
 data class DebtInput(val kind: String, val amount: BigDecimal, val note: String?)
 
 data class ServiceView(
