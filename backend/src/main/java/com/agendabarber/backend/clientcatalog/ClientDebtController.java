@@ -46,7 +46,7 @@ public class ClientDebtController {
     }
     @PostMapping("/{clientId}/entries")
     public Detail add(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID clientId,
-                      @RequestHeader("Idempotency - Key") UUID key,
+                      @RequestHeader("Idempotency-Key") UUID key,
                       @Valid @RequestBody Input input) {
         return service.add(barber(jwt), clientId, key, input);
     }
@@ -65,8 +65,8 @@ class ClientDebtService {
     public List<ClientDebtController.Summary> list(UUID barber) {
         return jdbc.query("""
                 SELECT c.id, c.name, SUM(d.amount) balance FROM client_debt_entries d
-                JOIN clients c ON c.barber_id = d.barber_id AND c.id = d.client_id
-                WHERE d.barber_id=? AND c.active = true
+                JOIN clients c ON c.barber_id=d.barber_id AND c.id=d.client_id
+                WHERE d.barber_id=? AND c.active=true
                 GROUP BY c.id, c.name HAVING SUM(d.amount)>0 ORDER BY lower(c.name)
                 """, (rs, n) -> new ClientDebtController.Summary(
                 rs.getObject("id", UUID.class), rs.getString("name"), rs.getBigDecimal("balance")), barber);
@@ -89,8 +89,8 @@ class ClientDebtService {
         }
         BigDecimal signed = "CHARGE".equals(input.kind()) ? amount : amount.negate();
         List<BigDecimal> previous = jdbc.query(
-                    "SELECT amount FROM client_debt_entries WHERE barber_id=? AND request_key=?",
-                (rs, n) -> rs.getBigDecimal(1), barber, key);
+                "SELECT amount FROM client_debt_entries WHERE barber_id=? AND request_key=?",
+            (rs, n) -> rs.getBigDecimal(1), barber, key);
         if (!previous.isEmpty()) {
             if (previous.get(0).compareTo(signed) != 0) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Chave de operação reutilizada");
@@ -108,7 +108,7 @@ class ClientDebtService {
     }
     private String name(UUID barber, UUID client, boolean lock) {
         List<String> names = jdbc.query(
-            "SELECT name FROM clients WHERE barber_id=? AND id=? AND active = true"
+                "SELECT name FROM clients WHERE barber_id=? AND id=? AND active=true"
                 + (lock ? " FOR UPDATE" : ""),
                 (rs, n) -> rs.getString(1), barber, client);
         if (names.isEmpty()) {
@@ -131,7 +131,7 @@ class ClientDebtService {
                 """, (rs, n) -> {
                     BigDecimal v = rs.getBigDecimal("amount");
                     return new ClientDebtController.Entry(rs.getObject("id", UUID.class),
-                        v.signum()>0?"CHARGE":"PAYMENT", v.abs(), rs.getString("note"),
+                        v.signum() > 0 ? "CHARGE" : "PAYMENT", v.abs(), rs.getString("note"),
                         rs.getTimestamp("created_at").toInstant());
                 }, barber, client);
         return new ClientDebtController.Detail(client, name, balance(barber, client), entries);
