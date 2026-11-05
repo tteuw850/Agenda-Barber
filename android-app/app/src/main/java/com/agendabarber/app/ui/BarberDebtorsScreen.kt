@@ -18,6 +18,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -115,7 +116,8 @@ internal fun BarberDebtorsScreen(api: AgendaApi, token: String, onBack: () -> Un
             .padding(horizontal = 18.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        BackHeader("Devedores", onBack)
+        TextButton(onClick = onBack) { Text("‹ Voltar", color = BarberGold) }
+        Text("Devedores", color = BarberTextPrimary, fontWeight = FontWeight.Bold)
         Text("Controle de valores pendentes", color = BarberTextSecondary)
         Text(
             "Clientes com dívida: ${debtors.size} • Total: ${formatBrl(debtors.fold(BigDecimal.ZERO) { sum, item -> sum + item.balance })}",
