@@ -40,7 +40,7 @@ class FinancePersistenceIntegrationTests {
                 postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
         Flyway flyway = Flyway.configure().dataSource(data)
                 .locations("classpath:db/migration").load();
-        assertEquals(9, flyway.migrate().migrationsExecuted);
+        assertEquals(10, flyway.migrate().migrationsExecuted);
         flyway.validate();
         jdbc = new JdbcTemplate(data);
         expenses = new ExpenseService(jdbc);
