@@ -504,6 +504,8 @@ internal fun BarberBookingForm(
     var notes by rememberSaveable(editId) { mutableStateOf("") }
     var key by rememberSaveable(editId) { mutableStateOf(UUID.randomUUID().toString()) }
     var clients by remember { mutableStateOf(emptyList<ClientView>()) }
+    var selectedDebt by remember { mutableStateOf<java.math.BigDecimal?>(null) }
+    var debtLookupError by remember { mutableStateOf(false) }
     var services by remember { mutableStateOf(emptyList<ServiceView>()) }
     var slots by remember { mutableStateOf(emptyList<SlotView>()) }
     var original by remember(editId) { mutableStateOf<AppointmentView?>(null) }
@@ -568,6 +570,19 @@ internal fun BarberBookingForm(
             clientId = newClientId
             search = newClientName
             key = UUID.randomUUID().toString()
+        }
+    }
+    LaunchedEffect(token, clientId) {
+        selectedDebt = null
+        debtLookupError = false
+        if (clientId.isNotBlank()) {
+            try {
+                selectedDebt = api.debt(token, clientId).balance
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                debtLookupError = true
+            }
         }
     }
     LaunchedEffect(token, date, serviceId, reloadSlots) {
@@ -815,6 +830,16 @@ internal fun BarberBookingForm(
                         key = UUID.randomUUID().toString()
                     }
                 }
+            }
+            if (clientId.isNotBlank() && selectedDebt != null && selectedDebt!! > BigDecimal.ZERO) {
+                Text(
+                    "⚠ Cliente com dívida pendente: ${formatBrl(selectedDebt!!)}",
+                    color = BarberGold,
+                    fontWeight = FontWeight.Bold
+                )
+                Text("O agendamento continua permitido.", color = BarberTextSecondary)
+            } else if (clientId.isNotBlank() && debtLookupError) {
+                Text("Não foi possível consultar pendências.", color = BarberTextSecondary)
             }
             Text("Data", color = BarberTextPrimary, style = MaterialTheme.typography.titleMedium)
             Surface(

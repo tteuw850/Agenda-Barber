@@ -36,6 +36,16 @@ data class ClientView(
     val lastAppointmentAt: String? = null,
     val photoUrl: String? = null
 )
+data class DebtSummary(val clientId: String, val clientName: String, val balance: BigDecimal)
+data class DebtEntry(val id: String, val kind: String, val amount: BigDecimal, val note: String?, val createdAt: String)
+data class DebtDetail(
+    val clientId: String,
+    val clientName: String,
+    val balance: BigDecimal,
+    val entries: List<DebtEntry>
+)
+data class DebtInput(val kind: String, val amount: BigDecimal, val note: String?)
+
 data class ServiceView(
     val id: String,
     val name: String,
@@ -194,6 +204,20 @@ data class CreateClient(
 )
 
 interface AgendaApi {
+    @GET("api/v1/debts")
+    suspend fun debtors(@Header("Authorization") bearer: String): List<DebtSummary>
+
+    @GET("api/v1/debts/{clientId}")
+    suspend fun debt(@Header("Authorization") bearer: String, @Path("clientId") clientId: String): DebtDetail
+
+    @POST("api/v1/debts/{clientId}/entries")
+    suspend fun recordDebt(
+        @Header("Authorization") bearer: String,
+        @Path("clientId") clientId: String,
+        @Header("Idempotency-Key") key: String,
+        @Body input: DebtInput
+    ): DebtDetail
+
     @POST("api/v1/auth/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
 
