@@ -90,7 +90,7 @@ class ClientDebtService {
         BigDecimal signed = "CHARGE".equals(input.kind()) ? amount : amount.negate();
         List<BigDecimal> previous = jdbc.query(
                 "SELECT amount FROM client_debt_entries WHERE barber_id=? AND request_key=?",
-            (rs, n) -> rs.getBigDecimal(1), barber, key);
+                (rs, n) -> rs.getBigDecimal(1), barber, key);
         if (!previous.isEmpty()) {
             if (previous.get(0).compareTo(signed) != 0) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Chave de operação reutilizada");
