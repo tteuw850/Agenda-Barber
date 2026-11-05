@@ -41,7 +41,7 @@ class AppointmentRecurrenceIntegrationTests {
     static void prepare() {
         DataSource data = new DriverManagerDataSource(
                 postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
-        assertEquals(9, Flyway.configure().dataSource(data)
+        assertEquals(10, Flyway.configure().dataSource(data)
                 .locations("classpath:db/migration").load().migrate().migrationsExecuted);
         jdbc = new JdbcTemplate(data);
         recurrences = new AppointmentRecurrenceService(jdbc);
