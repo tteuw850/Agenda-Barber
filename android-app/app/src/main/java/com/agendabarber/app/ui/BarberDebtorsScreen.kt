@@ -123,7 +123,8 @@ internal fun BarberDebtorsScreen(api: AgendaApi, token: String, onBack: () -> Un
         TextButton(onClick = onBack) { Text("‹ Voltar", color = BarberGold) }
         Text("Devedores", color = BarberTextPrimary, fontWeight = FontWeight.Bold)
         Text("Controle de valores pendentes", color = BarberTextSecondary)
-        if (debtorsAvailable) Text(
+        if (debtorsAvailable) {
+            Text(
             "Clientes com dívida: ${debtors.size} • Total: ${formatBrl(
                 debtors.fold(BigDecimal.ZERO) { sum, item ->
                     sum + item.balance
@@ -189,7 +190,10 @@ internal fun BarberDebtorsScreen(api: AgendaApi, token: String, onBack: () -> Un
                 if (detailLoading) {
                     Text("Consultando cliente...", color = BarberTextSecondary)
                 } else {
-                    Text("Saldo indisponível. Não foi possível carregar o cadastro financeiro.", color = BarberTextSecondary)
+                    Text(
+                        "Saldo indisponível. Não foi possível carregar o cadastro financeiro.",
+                        color = BarberTextSecondary
+                    )
                 }
             } else {
                 Text(current.clientName, color = BarberTextPrimary, fontWeight = FontWeight.Bold)
