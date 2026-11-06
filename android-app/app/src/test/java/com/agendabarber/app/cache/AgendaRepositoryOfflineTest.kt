@@ -18,10 +18,13 @@ class AgendaRepositoryOfflineTest {
     fun usesRoomSnapshotWhenApiIsTemporarilyUnavailable() = runBlocking {
         val dao = MemoryCacheDao()
         var serverStatus = 200
-        val repo = AgendaRepository(fakeApi {
-            if (serverStatus == 503) throw httpError(503)
-            emptyList()
-        }, dao)
+        val repo = AgendaRepository(
+            fakeApi {
+                if (serverStatus == 503) throw httpError(503)
+                emptyList()
+            },
+            dao
+        )
 
         val initial = repo.appointments("barber-token", "2026-11-06", "day", "ALL")
         assertFalse(initial.fromCache)
@@ -42,10 +45,13 @@ class AgendaRepositoryOfflineTest {
     fun neverSharesCachedAppointmentsBetweenTokensOrDates() = runBlocking {
         val dao = MemoryCacheDao()
         var fail = false
-        val repo = AgendaRepository(fakeApi {
-            if (fail) throw httpError(503)
-            emptyList()
-        }, dao)
+        val repo = AgendaRepository(
+            fakeApi {
+                if (fail) throw httpError(503)
+                emptyList()
+            },
+            dao
+        )
         repo.appointments("barber-A", "2026-11-06", "day", "ALL")
         fail = true
 
@@ -65,10 +71,13 @@ class AgendaRepositoryOfflineTest {
     fun neverUsesOfflineCacheAfterAuthenticationFailure() = runBlocking {
         val dao = MemoryCacheDao()
         var serverStatus = 200
-        val repo = AgendaRepository(fakeApi {
-            if (serverStatus != 200) throw httpError(serverStatus)
-            emptyList()
-        }, dao)
+        val repo = AgendaRepository(
+            fakeApi {
+                if (serverStatus != 200) throw httpError(serverStatus)
+                emptyList()
+            },
+            dao
+        )
         repo.appointments("barber-token", "2026-11-06", "day", "ALL")
         serverStatus = 401
 
@@ -83,10 +92,13 @@ class AgendaRepositoryOfflineTest {
     fun logoutClearsSnapshotsAndLastSynchronization() = runBlocking {
         val dao = MemoryCacheDao()
         var fail = false
-        val repo = AgendaRepository(fakeApi {
-            if (fail) throw httpError(503)
-            emptyList()
-        }, dao)
+        val repo = AgendaRepository(
+            fakeApi {
+                if (fail) throw httpError(503)
+                emptyList()
+            },
+            dao
+        )
         repo.appointments("barber-token", "2026-11-06", "day", "ALL")
         assertEquals(1, dao.count())
 
@@ -101,13 +113,12 @@ class AgendaRepositoryOfflineTest {
         assertTrue(failure is HttpException)
     }
 
-    private fun fakeApi(response: () -> List<AppointmentView>): AgendaApi =
-        Proxy.newProxyInstance(
-            AgendaApi::class.java.classLoader,
-            arrayOf(AgendaApi::class.java)
-        ) { _, method, _ ->
-            if (method.name == "appointments") response() else error("Unexpected API method: ${method.name}")
-        } as AgendaApi
+    private fun fakeApi(response: () -> List<AppointmentView>): AgendaApi = Proxy.newProxyInstance(
+        AgendaApi::class.java.classLoader,
+        arrayOf(AgendaApi::class.java)
+    ) { _, method, _ ->
+        if (method.name == "appointments") response() else error("Unexpected API method: ${method.name}")
+    } as AgendaApi
 
     private fun httpError(code: Int): HttpException =
         HttpException(Response.error<Any>(code, "Failure".toResponseBody(null)))
