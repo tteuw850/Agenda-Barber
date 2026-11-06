@@ -59,6 +59,13 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid credentials.");
     }
 
+    @ExceptionHandler(AuthService.InvalidPasswordChangeException.class)
+    ResponseEntity<ProblemDetail> invalidPasswordChange(
+            AuthService.InvalidPasswordChangeException ignored) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid password",
+                "The replacement password does not meet requirements.");
+    }
+
     @ExceptionHandler(AuthSessionService.InvalidSessionException.class)
     ResponseEntity<ProblemDetail> invalidSession(AuthSessionService.InvalidSessionException ignored) {
         return problem(HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid or expired session.");
