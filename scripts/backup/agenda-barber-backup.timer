@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Agenda Barber production logical backup
+
+[Timer]
+OnCalendar=*-*-* 06:15:00 UTC
+RandomizedDelaySec=15min
+Persistent=true
+Unit=agenda-barber-backup.service
+
+[Install]
+WantedBy=timers.target
