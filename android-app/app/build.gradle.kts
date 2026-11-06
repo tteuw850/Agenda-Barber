@@ -1,6 +1,8 @@
+import java.net.URI
+
 // Release credentials and the production endpoint are supplied only by the release machine.
 val prodApiUrl = System.getenv("AB_PROD_API_URL")
-val prodApiHost = prodApiUrl?.let { runCatching { java.net.URI(it).host }.getOrNull() }
+val prodApiHost = prodApiUrl?.let { runCatching { URI(it).host }.getOrNull() }
 val releaseKeyStore = System.getenv("AB_RELEASE_KEYSTORE")
 val releaseStorePassword = System.getenv("AB_RELEASE_STORE_PASSWORD")
 val releaseKeyAlias = System.getenv("AB_RELEASE_KEY_ALIAS")
