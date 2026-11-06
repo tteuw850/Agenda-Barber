@@ -1,5 +1,8 @@
+import java.net.URI
+
 // Release credentials and the production endpoint are supplied only by the release machine.
 val prodApiUrl = System.getenv("AB_PROD_API_URL")
+val prodApiHost = prodApiUrl?.let { runCatching { URI(it).host }.getOrNull() }
 val releaseKeyStore = System.getenv("AB_RELEASE_KEYSTORE")
 val releaseStorePassword = System.getenv("AB_RELEASE_STORE_PASSWORD")
 val releaseKeyAlias = System.getenv("AB_RELEASE_KEY_ALIAS")
@@ -84,7 +87,8 @@ tasks.matching { it.name == "preReleaseBuild" }.configureEach {
     doFirst {
         require(
             prodApiUrl?.startsWith("https://") == true &&
-                !prodApiUrl.contains("18-216-115-216.sslip.io")
+                !prodApiHost.isNullOrBlank() &&
+                prodApiHost != "18-216-115-216.sslip.io"
         ) {
             "A separate HTTPS production API endpoint is required to build release."
         }
