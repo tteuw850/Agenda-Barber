@@ -142,6 +142,13 @@ class AuthSecurityIntegrationTests {
     }
 
     @Test
+    void explicitDebtNotFoundIs404InsteadOfUnexpected500() throws Exception {
+        Account owner = account();
+        String jwt = tokenFor(owner);
+        assertEquals(404, get("/api/v1/debts/" + UUID.randomUUID(), jwt).statusCode());
+    }
+
+    @Test
     void loginProducesRs256AndScopedIdentity() throws Exception {
         Account a = account();
         assertEquals(401, get("/api/v1/auth/me", null).statusCode());
