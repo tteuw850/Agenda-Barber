@@ -1,0 +1,10 @@
+[Unit]
+Description=Agenda Barber production Neon logical backup
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+UMask=0077
+ExecStart=/usr/local/sbin/agenda-barber-backup-production
+TimeoutStartSec=600
