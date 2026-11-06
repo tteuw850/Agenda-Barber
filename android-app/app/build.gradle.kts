@@ -17,6 +17,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
+        getByName("debug") { applicationIdSuffix = ".qa" }
         release { isMinifyEnabled = false }
     }
     compileOptions {
