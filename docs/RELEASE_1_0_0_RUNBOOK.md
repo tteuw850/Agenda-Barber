@@ -34,3 +34,12 @@
 - Android: não trocar assinatura de lançamento nem versionCode para trás; publicar hotfix com a mesma chave quando necessário.
 
 **Status de segurança:** sem credenciais PROD no repositório; sem publicação de APK com URL DEV; sem alteração no aplicativo instalado.
+
+## Evidências complementares — 06/11/2026
+
+- Imagem de release na EC2: `agenda-barber-prod:1.0.0-rc1`, digest local `sha256:6061239c8e35b00b0850b5f9f7751de4435577805133552d7a0892471ec4096f`. `docker build` terminou com exit code 0.
+- Teste isolado: container temporário com perfil `default`, porta local 18081, `/actuator/health` HTTP 200. API DEV permaneceu HTTP 200; container temporário removido.
+- Neon: restaurado clone do backup PROD `br-icy-smoke-b65pj4r7`. Confirma Flyway V6, sem tabela `client_debt_entries`, zero clientes e zero usuários — cópia recuperou estado pré-migração. **Não remover automaticamente branches de backup ou validação.**
+- APK debug do commit aprovado 832de6b instalado no Pixel_7 via ADB (`Performing Streamed Install / Success`), mas abertura funcional não confirmada: comandos ADB subsequentes travaram durante o boot do emulador. Não declarar teste visual/offline concluído.
+- Produção ainda desligada: `/opt/agenda-barber-prod/deploy/.env` ausente, nenhum container PROD ativo. Não copiar segredos DEV para liberar prematuramente.
+- Assinatura de distribuição continua dependente de credenciais protegidas no computador do responsável. O teste CI com assinatura descartável **não substitui a assinatura oficial**.
