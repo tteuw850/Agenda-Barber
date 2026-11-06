@@ -29,8 +29,8 @@ jobs:
           echo "AB_RELEASE_STORE_PASSWORD=CI-ONLY-test-123456" >> "$GITHUB_ENV"
           echo "AB_RELEASE_KEY_PASSWORD=CI-ONLY-test-123456" >> "$GITHUB_ENV"
           echo "AB_RELEASE_KEY_ALIAS=ephemeral" >> "$GITHUB_ENV"
-          echo "AB_PROD_API_URL=https://release-ci.invalid/" >> "$GITHUB_ENV"
-      - name: Compile signed release with disposable key (never distribute)
+          echo "AB_PROD_API_URL=https://prod-18-216-115-216.sslip.io/" >> "$GITHUB_ENV"
+      - name: Compile release for validated PROD URL with disposable key (never distribute)
         working-directory: android-app
         run: gradle --no-daemon :app:assembleRelease
       - name: Verify signed release package
