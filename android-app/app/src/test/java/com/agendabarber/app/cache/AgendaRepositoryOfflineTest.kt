@@ -4,7 +4,7 @@ import com.agendabarber.app.network.AgendaApi
 import com.agendabarber.app.network.AppointmentView
 import java.lang.reflect.Proxy
 import kotlinx.coroutines.runBlocking
-import okhttp3.ResponseBody.Companion.toResponseBody
+import okhttp3.ResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -121,7 +121,7 @@ class AgendaRepositoryOfflineTest {
     } as AgendaApi
 
     private fun httpError(code: Int): HttpException =
-        HttpException(Response.error<Any>(code, "Failure".toResponseBody(null)))
+        HttpException(Response.error<Any>(code, ResponseBody.create(null, "Failure")))
 
     private class MemoryCacheDao : AgendaCacheDao {
         private val cache = mutableMapOf<String, AgendaSnapshot>()
