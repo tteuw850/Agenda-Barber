@@ -91,7 +91,7 @@ class ClientDebtIntegrationTests {
         UUID barber = UUID.randomUUID();
         UUID client = UUID.randomUUID();
         jdbc.update("INSERT INTO users(id,email,password_hash,role) VALUES(?,?,?,'BARBER')",
-                user, user + "@test.invalid", "not-a-real-hash");
+                user, user + "@test.invalid", "test-only-hash-not-for-login");
         jdbc.update("INSERT INTO barbers(id,user_id,timezone) VALUES(?,?,?)",
                 barber, user, "America/Sao_Paulo");
         jdbc.update("INSERT INTO clients(id,barber_id,name) VALUES(?,?,'Test Client')",
