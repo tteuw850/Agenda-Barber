@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
@@ -88,11 +89,15 @@ class ClientDebtService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Valor inválido");
         }
         BigDecimal signed = "CHARGE".equals(input.kind()) ? amount : amount.negate();
-        List<BigDecimal> previous = jdbc.query(
-                "SELECT amount FROM client_debt_entries WHERE barber_id=? AND request_key=?",
-                (rs, n) -> rs.getBigDecimal(1), barber, key);
+        List<ExistingEntry> previous = jdbc.query(
+                "SELECT client_id,amount,note FROM client_debt_entries WHERE barber_id=? AND request_key=?",
+                (rs, n) -> new ExistingEntry(rs.getObject(1, UUID.class),
+                        rs.getBigDecimal(2), rs.getString(3)), barber, key);
         if (!previous.isEmpty()) {
-            if (previous.get(0).compareTo(signed) != 0) {
+            ExistingEntry existing = previous.get(0);
+            if (!existing.clientId().equals(client)
+                    || existing.amount().compareTo(signed) != 0
+                    || !Objects.equals(existing.note(), input.note())) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Chave de operação reutilizada");
             }
             return detail(barber, client, name);
@@ -106,6 +111,9 @@ class ClientDebtService {
                 """, barber, client, signed, input.note(), key);
         return detail(barber, client, name);
     }
+    private record ExistingEntry(UUID clientId, BigDecimal amount, String note) {
+    }
+
     private String name(UUID barber, UUID client, boolean lock) {
         List<String> names = jdbc.query(
                 "SELECT name FROM clients WHERE barber_id=? AND id=? AND active=true"
