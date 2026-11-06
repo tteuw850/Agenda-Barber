@@ -80,3 +80,15 @@ Não confundir: o teste HTTP 200 de `/actuator/health` pode funcionar mesmo com 
 No clone `br-proud-sound-b6qpyjll` foram inseridos **somente dados sintéticos** de dois barbeiros: lançamento de R$ 25 menos pagamento de R$ 10 resultou em R$ 15. PostgreSQL recusou conflito de horários, débito cruzado entre barbeiros (FK composta) e chave de lançamento duplicada. **Nenhuma dessas inserções foi executada na branch production**.
 
 Os scripts de proteção foram exercitados sem credenciais e impediram subir PROD e habilitar HTTPS. A ativação real aguarda o passo de configuração segura acima.
+
+## Produção interna conectada — 06/11/2026
+
+- O usuário configurou as credenciais de `agenda_app_prod` em `/opt/agenda-barber-prod/deploy/.env`, modo `0600`, sem imprimir senhas.
+- Startup inicialmente falhou pois o PostgreSQL JDBC procurou `/app/.postgresql/root.crt`. Corrigido com `sslmode=verify-full&sslrootcert=/etc/ssl/certs/ca-certificates.crt` no arquivo protegido, preservando validação de cadeia CA e hostname TLS. O assistente interativo de configuração passou a adicionar esse certificado automaticamente para futuras instalações.
+- Container `agenda-barber-prod-api-1` usa `agenda-barber-prod:1.0.0-rc1` e responde HTTP 200 em `127.0.0.1:8081/actuator/health`; logs registram início bem-sucedido do pool Hikari. A API DEV em `127.0.0.1:8080` mantém HTTP 200.
+- Endpoints sem bearer e login inválido retornaram 401, incluindo `/api/v1/debts`, `/api/v1/services` e `/api/v1/reports/dashboard`. Isso prova proteção básica, **não um teste completo de autenticação positiva**.
+- Neon production ainda sem usuários, barbeiros, clientes, agendamentos ou dívidas. Backup adicional criado antes da tentativa de testes E2E: `br-misty-term-b6x00t7p` (backup-prod-before-auth-e2e-20261106).
+- Criação automatizada de usuário temporário e execução E2E foi bloqueada por controles de segurança do CodeBridge. Nenhuma conta de teste foi criada. Um primeiro usuário deve ser provisionado por procedimento autorizado, com senha fornecida exclusivamente em canal seguro; nunca commit ou logar senha/hash.
+- Container antigo de smoke `brave_taussig` (sem portas ou volumes) removido para liberar memória; serviços ativos são somente PROD interno e DEV interno.
+- **Caddy de produção não foi ativado**; somente hostname DEV permanece no Caddyfile. Executar teste positivo de login/isolamento/agenda/recorrência/devedores/financeiro antes de publicar HTTPS PROD.
+- Testes JVM do Room em PR #45, CI verde na execução 42246608976. Teste offline em dispositivo físico segue pendente.
