@@ -92,3 +92,12 @@ Os scripts de proteção foram exercitados sem credenciais e impediram subir PRO
 - Container antigo de smoke `brave_taussig` (sem portas ou volumes) removido para liberar memória; serviços ativos são somente PROD interno e DEV interno.
 - **Caddy de produção não foi ativado**; somente hostname DEV permanece no Caddyfile. Executar teste positivo de login/isolamento/agenda/recorrência/devedores/financeiro antes de publicar HTTPS PROD.
 - Testes JVM do Room em PR #45, CI verde na execução 42246608976. Teste offline em dispositivo físico segue pendente.
+
+## Primeira conta PROD e verificação positiva — 06/11/2026
+
+- Cadastro de `ebinho` (`eber@barber.com`), role `BARBER`, efetuado **manualmente no SSH** pelo responsável usando o script interativo `create-first-barber.py`. Verificado no Neon: conta ativa, perfil de barbeiro vinculado e hash em formato BCrypt válido. Senha **não documentada nem registrada no repositório**.
+- `agenda-barber-prod-api-1` segue saudável em `127.0.0.1:8081`; API DEV saudável em 8080. Teste de login inválido retornou 401. **Login correto ainda não testado.**
+- Script de verificação de login real e leituras autenticadas preparado em `/opt/agenda-barber-prod/deploy/verify-ebinho-login.py` com permissão `0700`. Solicita senha por `getpass`; não grava nem imprime segredo/token. Verifica `auth/me`, clientes, serviços, agenda, recorrências, Devedores e dashboard. Apenas leitura, sem criar agendamentos nem modificar dados financeiros.
+- Ao passar em todos os testes, grava recibo sem segredo em `.auth-qa-verified` (modo `0600`). Script `enable-prod-https.sh` **recusa** publicar Caddy PROD sem recibo válido e recente (até 1 hora), além de verificar saúde local e validar a configuração.
+- **Próxima ação humana:** executar em terminal SSH próprio `python3 /opt/agenda-barber-prod/deploy/verify-ebinho-login.py`, digitar a senha temporária sem enviá-la ao chat e compartilhar apenas o resultado `QA_READ_ONLY_SUCCESS` ou erros HTTP. Revalidar fluxos de escrita e offline em etapas posteriores.
+- Senha provisória foi compartilhada em conversa antes do lançamento e **deve ser trocada**, com revogação das sessões, antes de distribuir a versão oficial.
