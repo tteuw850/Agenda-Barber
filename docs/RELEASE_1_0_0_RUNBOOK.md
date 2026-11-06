@@ -43,3 +43,40 @@
 - APK debug do commit aprovado 832de6b instalado no Pixel_7 via ADB (`Performing Streamed Install / Success`), mas abertura funcional não confirmada: comandos ADB subsequentes travaram durante o boot do emulador. Não declarar teste visual/offline concluído.
 - Produção ainda desligada: `/opt/agenda-barber-prod/deploy/.env` ausente, nenhum container PROD ativo. Não copiar segredos DEV para liberar prematuramente.
 - Assinatura de distribuição continua dependente de credenciais protegidas no computador do responsável. O teste CI com assinatura descartável **não substitui a assinatura oficial**.
+
+## Runbook complementar — configuração segura da API PROD
+
+Artefatos criados e verificados na EC2:
+
+- `/opt/agenda-barber-prod/deploy/configure-prod-env.py` — assistente interativo, código local com permissões `0700`. Solicita JDBC production e senha por `getpass`, exige `sslmode=verify-full`, cria `.env` com `0600` e preserva as chaves JWT exclusivas, sem imprimir a senha.
+- `/opt/agenda-barber-prod/deploy/start-prod-loopback.sh` — recusa iniciar sem `.env` com modo `0600`; faz `docker compose config --quiet` e sobe a API somente em `127.0.0.1:8081`. Confirma endpoint `/actuator/health`, mas isso **não substitui um teste autenticado do banco**.
+- `/opt/agenda-barber-prod/deploy/enable-prod-https.sh` — recusa habilitar o Caddy sem API saudável em 8081; salva a configuração anterior e valida o novo arquivo antes de recarregar. Só executar depois dos testes autenticados e da aprovação de publicação.
+
+**Ação humana exigida pelo cofre de segredos:** abrir uma sessão SSH diretamente no CodeBridge, sem colar credenciais no chat, e executar:
+
+```bash
+python3 /opt/agenda-barber-prod/deploy/configure-prod-env.py
+```
+
+Inserir URL `jdbc:postgresql://...` da **branch production** do Neon, banco `agenda_barber`, com `?sslmode=verify-full`; quando solicitado, digitar a senha da role `agenda_app_prod` no prompt sem eco. Não usar credenciais da branch development.
+
+Após configurar:
+
+```bash
+/opt/agenda-barber-prod/deploy/start-prod-loopback.sh
+```
+
+Testar autenticação, isolamento e escrita com usuário de produção criado de forma segura **antes** de executar:
+
+```bash
+/opt/agenda-barber-prod/deploy/enable-prod-https.sh
+curl --fail --show-error https://prod-18-216-115-216.sslip.io/actuator/health
+```
+
+Não confundir: o teste HTTP 200 de `/actuator/health` pode funcionar mesmo com testes de banco pendentes, pois a checagem DB está desabilitada no perfil Neon.
+
+### Evidências em clone isolado
+
+No clone `br-proud-sound-b6qpyjll` foram inseridos **somente dados sintéticos** de dois barbeiros: lançamento de R$ 25 menos pagamento de R$ 10 resultou em R$ 15. PostgreSQL recusou conflito de horários, débito cruzado entre barbeiros (FK composta) e chave de lançamento duplicada. **Nenhuma dessas inserções foi executada na branch production**.
+
+Os scripts de proteção foram exercitados sem credenciais e impediram subir PROD e habilitar HTTPS. A ativação real aguarda o passo de configuração segura acima.
