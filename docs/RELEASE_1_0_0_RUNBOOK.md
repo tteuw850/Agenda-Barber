@@ -101,3 +101,16 @@ Os scripts de proteção foram exercitados sem credenciais e impediram subir PRO
 - Ao passar em todos os testes, grava recibo sem segredo em `.auth-qa-verified` (modo `0600`). Script `enable-prod-https.sh` **recusa** publicar Caddy PROD sem recibo válido e recente (até 1 hora), além de verificar saúde local e validar a configuração.
 - **Próxima ação humana:** executar em terminal SSH próprio `python3 /opt/agenda-barber-prod/deploy/verify-ebinho-login.py`, digitar a senha temporária sem enviá-la ao chat e compartilhar apenas o resultado `QA_READ_ONLY_SUCCESS` ou erros HTTP. Revalidar fluxos de escrita e offline em etapas posteriores.
 - Senha provisória foi compartilhada em conversa antes do lançamento e **deve ser trocada**, com revogação das sessões, antes de distribuir a versão oficial.
+
+## Produção HTTPS ativada após QA positivo — 06/11/2026
+
+- O responsável executou a rotina protegida de login por SSH: `LOGIN_RESULT=PASS HTTP_200`, e `auth_me`, `clients`, `services`, `debtors`, `recurrences`, `appointments`, `reports` retornaram HTTP 200, em modo somente leitura.
+- Recibo QA com permissão `0600` e válido por uma hora foi verificado antes de habilitar PROD no Caddy.
+- `enable-prod-https.sh` validou o Caddyfile, criou o backup `/etc/caddy/Caddyfile.before-prod-20261106T222548Z` e adicionou `prod-18-216-115-216.sslip.io` → `127.0.0.1:8081`.
+- Certificado emitido pelo Let's Encrypt e validado pelo `curl`, com `HTTP 200` e `ssl_verify_result=0`, em `https://prod-18-216-115-216.sslip.io/actuator/health`. DEV permanece HTTPS 200 em `https://18-216-115-216.sslip.io`.
+- HTTPS PROD sem bearer retornou HTTP 401 em `/api/v1/auth/me`, `/api/v1/debts`, `/api/v1/clients` e `/api/v1/appointment-recurrences`. **As operações de escrita autenticada continuam pendentes**, não devem ser confundidas com os testes somente de leitura.
+- CI release `42305149176` validou `assembleRelease` e assinatura com **keystore CI descartável**, agora com `AB_PROD_API_URL=https://prod-18-216-115-216.sslip.io/`. O Gradle Kotlin DSL foi corrigido para comparar a hostname exata da DEV (evitando bloquear o subdomínio PROD). **Isso não produziu um APK com a chave oficial**.
+- PR #45 passou na CI `42246608976` com testes de cache offline; requer revisão/merge.
+- PR #46 (`feat/secure-password-rotation`) implementa alteração de senha autenticada e revogação de sessões, com testes integrados; aguarda CI e revisão. A senha temporária divulgada em conversa **precisa ser substituída antes da distribuição do APK**.
+- Neon production tem 10 versões Flyway, uma conta ativa e um barbeiro, sem clientes/atendimentos lançados. Foi tentado novo backup após a conta, mas o Neon retornou `branches limit exceeded`; backups anteriores foram preservados. Não excluir branches existentes sem aprovação. Planejar backup consistente da configuração atual antes de qualquer alteração destrutiva.
+- O domínio sslip.io inclui o IPv4 da EC2: antes de distribuir o aplicativo, confirmar que o endereço público é estático ou migrar para um domínio estável para evitar quebra do cliente após troca de IP.
