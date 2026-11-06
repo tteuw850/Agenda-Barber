@@ -108,6 +108,40 @@ class AuthSecurityIntegrationTests {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
+    void changingPasswordRevokesEverySessionAndRequiresCurrentPassword() throws Exception {
+        Account a = account();
+        JsonNode first = mapper.readTree(login(a.email(), PASSWORD).body());
+        JsonNode second = mapper.readTree(login(a.email(), PASSWORD).body());
+        String firstAccess = first.get("accessToken").asText();
+        String secondAccess = second.get("accessToken").asText();
+        String oldRefresh = first.get("refreshToken").asText();
+        String updatedPassword = "RotatedTestPassword#2026!";
+
+        String wrongCurrent = mapper.writeValueAsString(Map.of(
+                "currentPassword", "IncorrectTestOnly", "newPassword", updatedPassword));
+        assertEquals(401, request("POST", "/api/v1/auth/change-password",
+                wrongCurrent, firstAccess).statusCode());
+        assertEquals(200, get("/api/v1/auth/me", firstAccess).statusCode());
+
+        String reusedPassword = mapper.writeValueAsString(Map.of(
+                "currentPassword", PASSWORD, "newPassword", PASSWORD));
+        assertEquals(400, request("POST", "/api/v1/auth/change-password",
+                reusedPassword, firstAccess).statusCode());
+
+        String change = mapper.writeValueAsString(Map.of(
+                "currentPassword", PASSWORD, "newPassword", updatedPassword));
+        assertEquals(204, request("POST", "/api/v1/auth/change-password",
+                change, firstAccess).statusCode());
+        assertEquals(401, get("/api/v1/auth/me", firstAccess).statusCode());
+        assertEquals(401, get("/api/v1/auth/me", secondAccess).statusCode());
+
+        String refresh = mapper.writeValueAsString(Map.of("refreshToken", oldRefresh));
+        assertEquals(401, request("POST", "/api/v1/auth/refresh", refresh, null).statusCode());
+        assertEquals(401, login(a.email(), PASSWORD).statusCode());
+        assertEquals(200, login(a.email(), updatedPassword).statusCode());
+    }
+
+    @Test
     void loginProducesRs256AndScopedIdentity() throws Exception {
         Account a = account();
         assertEquals(401, get("/api/v1/auth/me", null).statusCode());
