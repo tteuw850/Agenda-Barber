@@ -39,7 +39,7 @@ public class AppointmentService {
     private static final String SELECT = "SELECT a.id,a.client_id,c.name AS client_name,"
             + "c.phone AS client_phone,a.service_id,a.service_name_snapshot,a.price_snapshot,"
             + "a.starts_at,a.ends_at,a.status::text AS state,a.notes,a.completed_at,"
-            + "a.version,a.created_at,a.updated_at,a.received_amount FROM appointments a "
+            + "a.version,a.created_at,a.updated_at,a.received_amount,a.recurrence_id FROM appointments a "
             + "JOIN clients c ON c.id=a.client_id AND c.barber_id=a.barber_id ";
     private static final RowMapper<AppointmentView> MAPPER = (rs, index) -> map(rs);
 
@@ -248,7 +248,8 @@ public class AppointmentService {
                 rs.getString("state"), rs.getString("notes"),
                 completed == null ? null : completed.toInstant(),
                 rs.getLong("version"), rs.getTimestamp("created_at").toInstant(),
-                rs.getTimestamp("updated_at").toInstant(), rs.getBigDecimal("received_amount"));
+                rs.getTimestamp("updated_at").toInstant(), rs.getBigDecimal("received_amount"),
+                rs.getObject("recurrence_id", UUID.class));
     }
 
     private static UUID asUuid(Object value) {

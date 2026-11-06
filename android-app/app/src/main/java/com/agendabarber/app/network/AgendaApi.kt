@@ -1,6 +1,10 @@
 package com.agendabarber.app.network
 
+import android.util.Log
+import com.agendabarber.app.BuildConfig
+import java.io.IOException
 import java.math.BigDecimal
+import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -32,6 +36,16 @@ data class ClientView(
     val lastAppointmentAt: String? = null,
     val photoUrl: String? = null
 )
+data class DebtSummary(val clientId: String, val clientName: String, val balance: BigDecimal)
+data class DebtEntry(val id: String, val kind: String, val amount: BigDecimal, val note: String?, val createdAt: String)
+data class DebtDetail(
+    val clientId: String,
+    val clientName: String,
+    val balance: BigDecimal,
+    val entries: List<DebtEntry>
+)
+data class DebtInput(val kind: String, val amount: BigDecimal, val note: String?)
+
 data class ServiceView(
     val id: String,
     val name: String,
@@ -98,7 +112,8 @@ data class AppointmentView(
     val notes: String?,
     val completedAt: String?,
     val version: Long,
-    val receivedAmount: BigDecimal? = null
+    val receivedAmount: BigDecimal? = null,
+    val recurrenceId: String? = null
 )
 
 data class HistoryItem(
@@ -114,6 +129,32 @@ data class CreateAppointment(
     val startsAt: String,
     val price: BigDecimal?,
     val notes: String?
+)
+
+data class RecurrenceRequest(
+    val clientId: String,
+    val serviceId: String,
+    val startsOn: String,
+    val localTime: String,
+    val weekdays: List<Int>,
+    val weeks: Int,
+    val price: BigDecimal?,
+    val notes: String?
+)
+
+data class RecurrenceOccurrence(val date: String, val startsAt: String?, val state: String)
+
+data class RecurrencePreview(val occurrences: List<RecurrenceOccurrence>, val available: Int, val unavailable: Int)
+
+data class RecurrenceSeries(
+    val id: String,
+    val startsOn: String,
+    val localTime: String,
+    val weekdays: List<Int>,
+    val weeks: Int,
+    val totalAppointments: Long,
+    val scheduledAppointments: Long,
+    val cancelledAt: String?
 )
 
 data class CompleteAppointment(val receivedAmount: BigDecimal)
@@ -163,6 +204,20 @@ data class CreateClient(
 )
 
 interface AgendaApi {
+    @GET("api/v1/debts")
+    suspend fun debtors(@Header("Authorization") bearer: String): List<DebtSummary>
+
+    @GET("api/v1/debts/{clientId}")
+    suspend fun debt(@Header("Authorization") bearer: String, @Path("clientId") clientId: String): DebtDetail
+
+    @POST("api/v1/debts/{clientId}/entries")
+    suspend fun recordDebt(
+        @Header("Authorization") bearer: String,
+        @Path("clientId") clientId: String,
+        @Header("Idempotency-Key") key: String,
+        @Body input: DebtInput
+    ): DebtDetail
+
     @POST("api/v1/auth/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
 
@@ -178,7 +233,8 @@ interface AgendaApi {
         @Header("Authorization") bearer: String,
         @Query("date") date: String,
         @Query("view") view: String,
-        @Query("status") status: String
+        @Query("status") status: String,
+        @Query("limit") limit: Int
     ): List<AppointmentView>
 
     @GET("api/v1/appointments/{id}")
@@ -193,6 +249,28 @@ interface AgendaApi {
         @Header("Idempotency-Key") key: String,
         @Body request: CreateAppointment
     ): AppointmentView
+
+    @POST("api/v1/appointment-recurrences/preview")
+    suspend fun previewRecurrence(
+        @Header("Authorization") bearer: String,
+        @Body request: RecurrenceRequest
+    ): RecurrencePreview
+
+    @POST("api/v1/appointment-recurrences")
+    suspend fun createRecurrence(
+        @Header("Authorization") bearer: String,
+        @Header("Idempotency-Key") key: String,
+        @Body request: RecurrenceRequest
+    ): RecurrenceSeries
+
+    @GET("api/v1/appointment-recurrences/{id}")
+    suspend fun recurrence(@Header("Authorization") bearer: String, @Path("id") id: String): RecurrenceSeries
+
+    @POST("api/v1/appointment-recurrences/{id}/cancel-future")
+    suspend fun cancelRecurrenceFuture(
+        @Header("Authorization") bearer: String,
+        @Path("id") id: String
+    ): RecurrenceSeries
 
     @PATCH("api/v1/appointments/{id}")
     suspend fun edit(
@@ -343,7 +421,33 @@ object AgendaApiFactory {
         }
         return Retrofit.Builder()
             .baseUrl(base)
-            .client(OkHttpClient.Builder().build())
+            .client(
+                OkHttpClient.Builder()
+                    .callTimeout(15, TimeUnit.SECONDS)
+                    .addInterceptor { chain ->
+                        val request = chain.request()
+                        val path = request.url().encodedPath()
+                        val trace = BuildConfig.DEBUG &&
+                            (path == "/api/v1/services" || path == "/api/v1/schedule/working-hours")
+                        val start = System.nanoTime()
+                        try {
+                            val response = chain.proceed(request)
+                            if (trace) {
+                                Log.i(
+                                    "AgendaBarberAPI",
+                                    "$path code=${response.code()} elapsedMs=${(System.nanoTime() - start) / 1_000_000}"
+                                )
+                            }
+                            response
+                        } catch (failure: IOException) {
+                            if (trace) {
+                                Log.w("AgendaBarberAPI", "$path networkFailure=${failure.javaClass.simpleName}")
+                            }
+                            throw failure
+                        }
+                    }
+                    .build()
+            )
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(AgendaApi::class.java)

@@ -1,5 +1,6 @@
 package com.agendabarber.backend.common;
 
+import com.agendabarber.backend.appointments.AppointmentRecurrenceService;
 import com.agendabarber.backend.appointments.AppointmentService;
 import com.agendabarber.backend.auth.AuthService;
 import com.agendabarber.backend.finance.ExpenseService;
@@ -150,6 +151,26 @@ public class ApiExceptionHandler {
     ResponseEntity<ProblemDetail> missingReportOwner(
             com.agendabarber.backend.reports.ReportService.ReportNotFoundException ignored) {
         return problem(HttpStatus.NOT_FOUND, "Not found", "Barber not found.");
+    }
+
+    @ExceptionHandler(AppointmentRecurrenceService.InvalidRecurrenceException.class)
+    ResponseEntity<ProblemDetail> invalidRecurrence(
+            AppointmentRecurrenceService.InvalidRecurrenceException ignored) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid recurrence",
+                "Select weekdays, time and a period of 4, 12 or 26 weeks (maximum 60 occurrences).");
+    }
+
+    @ExceptionHandler(AppointmentRecurrenceService.RecurrenceNotFoundException.class)
+    ResponseEntity<ProblemDetail> missingRecurrence(
+            AppointmentRecurrenceService.RecurrenceNotFoundException ignored) {
+        return problem(HttpStatus.NOT_FOUND, "Not found", "Recurring booking series not found.");
+    }
+
+    @ExceptionHandler(AppointmentRecurrenceService.RecurrenceConflictException.class)
+    ResponseEntity<ProblemDetail> recurrenceConflict(
+            AppointmentRecurrenceService.RecurrenceConflictException ignored) {
+        return problem(HttpStatus.CONFLICT, "Conflict",
+                "One or more recurring appointments are unavailable; no appointment was created.");
     }
 
     @ExceptionHandler(AppointmentService.AppointmentNotFoundException.class)

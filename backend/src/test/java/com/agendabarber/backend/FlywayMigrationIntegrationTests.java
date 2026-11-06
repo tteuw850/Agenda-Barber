@@ -37,7 +37,7 @@ class FlywayMigrationIntegrationTests {
                 .dataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())
                 .locations("classpath:db/migration")
                 .load();
-        assertEquals(8, flyway.migrate().migrationsExecuted);
+        assertEquals(10, flyway.migrate().migrationsExecuted);
         assertTrue(flyway.validateWithResult().validationSuccessful);
     }
 
@@ -48,11 +48,15 @@ class FlywayMigrationIntegrationTests {
                         + "WHERE table_schema = 'public' AND table_name IN "
                         + "('users','barbers','clients','services','appointments','blocked_periods',"
                         + "'working_hours','expenses','idempotency_records')"));
-        assertEquals(8, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
+        assertEquals(10, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
         assertEquals(1, count("SELECT count(*) FROM information_schema.tables "
                 + "WHERE table_schema='public' AND table_name='auth_refresh_tokens'"));
         assertEquals(1, count("SELECT count(*) FROM pg_constraint "
                 + "WHERE conname = 'ex_appointments_barber_active_overlap'"));
+        assertEquals(1, count("SELECT count(*) FROM information_schema.tables "
+                + "WHERE table_schema='public' AND table_name='appointment_recurrences'"));
+        assertEquals(1, count("SELECT count(*) FROM information_schema.columns "
+                + "WHERE table_name='appointments' AND column_name='recurrence_id'"));
         flyway.validate();
     }
 
@@ -172,7 +176,7 @@ class FlywayMigrationIntegrationTests {
                 + "WHERE table_schema='public' AND table_name='recurring_blocks'"));
         assertEquals(1, count("SELECT count(*) FROM information_schema.columns "
                 + "WHERE table_name='blocked_periods' AND column_name='notes'"));
-        assertEquals(8, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
+        assertEquals(10, count("SELECT count(*) FROM flyway_schema_history WHERE success"));
     }
 
 

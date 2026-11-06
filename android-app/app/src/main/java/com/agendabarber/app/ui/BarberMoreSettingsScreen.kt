@@ -3,7 +3,6 @@ package com.agendabarber.app.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,30 +11,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccessTime
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.ArrowForwardIos
-import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Backup
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.ContentCut
-import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Logout
-import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.PersonOutline
-import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -48,7 +40,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.agendabarber.app.ui.theme.BarberBackground
 import com.agendabarber.app.ui.theme.BarberCancelAction
 import com.agendabarber.app.ui.theme.BarberGold
 import com.agendabarber.app.ui.theme.BarberOutline
@@ -60,6 +51,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+// Kept for existing offline-cache tests; backup is no longer a menu action.
 internal fun lastCacheWriteCaption(value: Long?): String = if (value == null) {
     "Nenhuma gravação de cache confirmada nesta sessão."
 } else {
@@ -100,20 +92,19 @@ internal enum class MoreInfo(val title: String, val detail: String) {
 
 @Composable
 internal fun BarberMoreSettingsScreen(
-    lastCacheWriteAt: Long?,
+    profile: BarberLocalProfile,
+    onProfile: () -> Unit,
     onWorkingHours: () -> Unit,
     onServices: () -> Unit,
+    onDebtors: () -> Unit,
     onBlocks: () -> Unit,
-    onExpenses: () -> Unit,
     onLogout: () -> Unit
 ) {
-    var detail by rememberSaveable { mutableStateOf<MoreInfo?>(null) }
+    var showAbout by rememberSaveable { mutableStateOf(false) }
     var confirmLogout by rememberSaveable { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
             .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -126,50 +117,36 @@ internal fun BarberMoreSettingsScreen(
         Card(
             colors = CardDefaults.cardColors(containerColor = BarberSurfaceRaised),
             shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.dp, BarberOutline)
+            border = BorderStroke(1.dp, BarberOutline),
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onProfile)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier.size(56.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Card(
-                        shape = CircleShape,
-                        colors = CardDefaults.cardColors(containerColor = BarberBackground)
-                    ) {
-                        Box(Modifier.size(54.dp), contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Outlined.PersonOutline,
-                                contentDescription = "Foto de perfil não cadastrada",
-                                tint = BarberGold
-                            )
-                        }
-                    }
-                }
+                BarberProfileAvatar(profile.photoPath, profile.photoRevision, 56.dp)
                 Spacer(Modifier.size(12.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f)) {
                     Text(
-                        "Barbeiro",
+                        profile.name.ifBlank { "Barbeiro" },
                         color = BarberTextPrimary,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        "Perfil não configurado • Barbeiro",
+                        profile.businessName.ifBlank { "Toque para configurar seu perfil" },
                         color = BarberTextSecondary,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
+                Icon(Icons.Outlined.ArrowForwardIos, "Editar perfil", tint = BarberTextSecondary)
             }
         }
 
         MoreMenuItem(
             title = "Perfil",
             icon = Icons.Outlined.PersonOutline,
-            onClick = { detail = MoreInfo.PROFILE }
+            onClick = onProfile
         )
         MoreMenuItem(
             title = "Horário de funcionamento",
@@ -177,43 +154,9 @@ internal fun BarberMoreSettingsScreen(
             onClick = onWorkingHours
         )
         MoreMenuItem(
-            title = "Notificações",
-            icon = Icons.Outlined.NotificationsNone,
-            subtitle = "Indisponível",
-            onClick = {},
-            enabled = false,
-            trailing = {
-                Switch(
-                    checked = false,
-                    onCheckedChange = null,
-                    enabled = false,
-                    colors = SwitchDefaults.colors(
-                        disabledUncheckedTrackColor = BarberGold.copy(alpha = 0.48f),
-                        disabledUncheckedThumbColor = BarberGold
-                    )
-                )
-            }
-        )
-        MoreMenuItem(
-            title = "Backup e sincronização",
-            icon = Icons.Outlined.Backup,
-            onClick = { detail = MoreInfo.BACKUP }
-        )
-        MoreMenuItem(
-            title = "Tema",
-            icon = Icons.Outlined.AutoAwesome,
-            subtitle = "Automático",
-            onClick = { detail = MoreInfo.THEME }
-        )
-        MoreMenuItem(
-            title = "Ajuda e suporte",
-            icon = Icons.Outlined.HelpOutline,
-            onClick = { detail = MoreInfo.HELP }
-        )
-        MoreMenuItem(
             title = "Sobre o app",
             icon = Icons.Outlined.Info,
-            onClick = { detail = MoreInfo.ABOUT }
+            onClick = { showAbout = true }
         )
 
         Text(
@@ -228,14 +171,14 @@ internal fun BarberMoreSettingsScreen(
             onClick = onServices
         )
         MoreMenuItem(
+            title = "Devedores",
+            icon = Icons.Outlined.AccountBalanceWallet,
+            onClick = onDebtors
+        )
+        MoreMenuItem(
             title = "Bloquear horário",
             icon = Icons.Outlined.Build,
             onClick = onBlocks
-        )
-        MoreMenuItem(
-            title = "Despesas",
-            icon = Icons.Outlined.ReceiptLong,
-            onClick = onExpenses
         )
 
         OutlinedButton(
@@ -244,33 +187,19 @@ internal fun BarberMoreSettingsScreen(
             border = BorderStroke(1.dp, BarberCancelAction),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Icon(
-                Icons.Outlined.Logout,
-                contentDescription = null,
-                tint = BarberCancelAction
-            )
+            Icon(Icons.Outlined.Logout, contentDescription = null, tint = BarberCancelAction)
             Spacer(Modifier.size(8.dp))
             Text("Sair", color = BarberCancelAction)
         }
     }
 
-    detail?.let { selected ->
+    if (showAbout) {
         AlertDialog(
-            onDismissRequest = { detail = null },
-            title = { Text(selected.title) },
-            text = {
-                Text(
-                    if (selected == MoreInfo.BACKUP) {
-                        selected.detail + "\n" + lastCacheWriteCaption(lastCacheWriteAt)
-                    } else {
-                        selected.detail
-                    }
-                )
-            },
+            onDismissRequest = { showAbout = false },
+            title = { Text(MoreInfo.ABOUT.title) },
+            text = { Text(MoreInfo.ABOUT.detail) },
             confirmButton = {
-                TextButton(onClick = { detail = null }) {
-                    Text("Entendi", color = BarberGold)
-                }
+                TextButton(onClick = { showAbout = false }) { Text("Entendi", color = BarberGold) }
             }
         )
     }
