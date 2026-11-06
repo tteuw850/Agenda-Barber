@@ -42,7 +42,7 @@ android {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("production")
             if (!prodApiUrl.isNullOrBlank()) {
-                buildConfigField("String", "API_BASE_URL", "\\\"$prodApiUrl\\\"")
+                buildConfigField("String", "API_BASE_URL", "\"" + prodApiUrl + "\"")
             }
         }
     }
