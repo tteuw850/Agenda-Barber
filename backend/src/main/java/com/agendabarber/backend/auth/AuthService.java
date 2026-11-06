@@ -8,12 +8,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
 import org.springframework.dao.EmptyResultDataAccessException;
-import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Profile("neon")
@@ -76,16 +74,16 @@ public class AuthService {
         if (newPassword == null || newPassword.length() < 12
                 || newPassword.getBytes(StandardCharsets.UTF_8).length > 72
                 || currentPassword == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Senha inválida");
+            throw new InvalidPasswordChangeException();
         }
         List<String> hashes = jdbc.query(
                 "SELECT password_hash FROM users WHERE id=? AND active=true FOR UPDATE",
                 (rs, index) -> rs.getString(1), userId);
         if (hashes.isEmpty() || !encoder.matches(currentPassword, hashes.get(0))) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciais inválidas");
+            throw new InvalidLoginException();
         }
         if (encoder.matches(newPassword, hashes.get(0))) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Escolha uma senha diferente");
+            throw new InvalidPasswordChangeException();
         }
         jdbc.update("UPDATE users SET password_hash=?, credential_version=credential_version+1, "
                 + "updated_at=now() WHERE id=?", encoder.encode(newPassword), userId);
@@ -100,6 +98,12 @@ public class AuthService {
 
     public record LoginToken(String accessToken, String refreshToken, String tokenType,
                              long expiresInSeconds, long refreshExpiresInSeconds) {
+    }
+
+    public static final class InvalidPasswordChangeException extends RuntimeException {
+        public InvalidPasswordChangeException() {
+            super("Invalid password change");
+        }
     }
 
     public static final class InvalidLoginException extends RuntimeException {
