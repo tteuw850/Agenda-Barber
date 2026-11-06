@@ -29,6 +29,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -57,6 +58,13 @@ public class ApiExceptionHandler {
     @ExceptionHandler(AuthService.InvalidLoginException.class)
     ResponseEntity<ProblemDetail> invalidCredentials(AuthService.InvalidLoginException ignored) {
         return problem(HttpStatus.UNAUTHORIZED, "Unauthorized", "Invalid credentials.");
+    }
+
+    @ExceptionHandler(AuthService.InvalidPasswordChangeException.class)
+    ResponseEntity<ProblemDetail> invalidPasswordChange(
+            AuthService.InvalidPasswordChangeException ignored) {
+        return problem(HttpStatus.BAD_REQUEST, "Invalid password",
+                "The replacement password does not meet requirements.");
     }
 
     @ExceptionHandler(AuthSessionService.InvalidSessionException.class)
@@ -225,6 +233,18 @@ public class ApiExceptionHandler {
         ProblemDetail body = ProblemDetail.forStatusAndDetail(status, detail);
         body.setTitle(title);
         return body;
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    ResponseEntity<ProblemDetail> explicitHttpError(ResponseStatusException error) {
+        if (error.getStatusCode().is5xxServerError()) {
+            return problem(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error",
+                    "Unexpected server error.");
+        }
+        String reason = error.getReason() == null ? "Request could not be completed." : error.getReason();
+        ProblemDetail body = ProblemDetail.forStatusAndDetail(error.getStatusCode(), reason);
+        body.setTitle("Request rejected");
+        return ResponseEntity.status(error.getStatusCode()).body(body);
     }
 
     @ExceptionHandler(Exception.class)

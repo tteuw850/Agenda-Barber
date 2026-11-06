@@ -46,6 +46,14 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/change-password")
+    public ResponseEntity<Void> changePassword(@AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        service.changePassword(UUID.fromString(jwt.getSubject()),
+                request.currentPassword(), request.newPassword());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/me")
     public CurrentBarber me(@AuthenticationPrincipal Jwt jwt) {
         return new CurrentBarber(UUID.fromString(jwt.getSubject()),
@@ -55,6 +63,10 @@ public class AuthController {
 
     public record LoginRequest(@JsonAlias("email") @NotBlank @Size(max = 254) String username,
                                @NotBlank String password) {
+    }
+
+    public record ChangePasswordRequest(@NotBlank String currentPassword,
+                                        @NotBlank @Size(min = 12, max = 72) String newPassword) {
     }
 
     public record RefreshRequest(@NotBlank @Size(max = 128) String refreshToken) {

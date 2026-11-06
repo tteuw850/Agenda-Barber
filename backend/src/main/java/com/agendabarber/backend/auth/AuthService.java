@@ -1,5 +1,7 @@
 package com.agendabarber.backend.auth;
 
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -9,6 +11,7 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Profile("neon")
@@ -65,12 +68,42 @@ public class AuthService {
         return issued;
     }
 
+    /** Change password without logging credentials; revoke all sessions atomically. */
+    @Transactional
+    public void changePassword(UUID userId, String currentPassword, String newPassword) {
+        if (newPassword == null || newPassword.length() < 12
+                || newPassword.getBytes(StandardCharsets.UTF_8).length > 72
+                || currentPassword == null) {
+            throw new InvalidPasswordChangeException();
+        }
+        List<String> hashes = jdbc.query(
+                "SELECT password_hash FROM users WHERE id=? AND active=true FOR UPDATE",
+                (rs, index) -> rs.getString(1), userId);
+        if (hashes.isEmpty() || !encoder.matches(currentPassword, hashes.get(0))) {
+            throw new InvalidLoginException();
+        }
+        if (encoder.matches(newPassword, hashes.get(0))) {
+            throw new InvalidPasswordChangeException();
+        }
+        jdbc.update("UPDATE users SET password_hash=?, credential_version=credential_version+1, "
+                + "updated_at=now() WHERE id=?", encoder.encode(newPassword), userId);
+        jdbc.update("UPDATE auth_refresh_tokens SET revoked_at=now() "
+                + "WHERE user_id=? AND revoked_at IS NULL", userId);
+        LOGGER.info("event=auth.password_changed");
+    }
+
     private record UserAccount(UUID userId, String hash, boolean active, String role,
                                UUID barberId, long credentialVersion) {
     }
 
     public record LoginToken(String accessToken, String refreshToken, String tokenType,
                              long expiresInSeconds, long refreshExpiresInSeconds) {
+    }
+
+    public static final class InvalidPasswordChangeException extends RuntimeException {
+        public InvalidPasswordChangeException() {
+            super("Invalid password change");
+        }
     }
 
     public static final class InvalidLoginException extends RuntimeException {
