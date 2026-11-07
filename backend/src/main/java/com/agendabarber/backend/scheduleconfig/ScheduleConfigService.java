@@ -204,19 +204,59 @@ public class ScheduleConfigService {
         } catch (EmptyResultDataAccessException ignored) {
             throw new ScheduleNotFoundException();
         }
-        List<WorkingHoursView> schedule = workingHours(barberId);
-        List<FreeSlot> result = new ArrayList<>();
-        for (WorkingHoursView hours : schedule) {
-            if (!hours.enabled() || hours.weekday() != date.getDayOfWeek().getValue()) {
-                continue;
+
+        List<WorkingHoursView> today = workingHours(barberId).stream()
+                .filter(hours -> hours.enabled() && hours.weekday() == date.getDayOfWeek().getValue())
+                .toList();
+        if (today.isEmpty()) {
+            return List.of();
+        }
+
+        // Read the day's occupied periods once. The old implementation queried
+        // appointments, one-time blocks, and recurring blocks for EACH 15-minute
+        // candidate, creating >100 database round trips on a full working day.
+        Instant dayStart = date.atStartOfDay(zone).toInstant();
+        Instant nextDay = date.plusDays(1).atStartOfDay(zone).toInstant();
+        List<BusyInterval> occupiedToday = new ArrayList<>();
+        occupiedToday.addAll(jdbc.query(
+                "SELECT starts_at,ends_at FROM appointments WHERE barber_id=? "
+                        + "AND status IN ('SCHEDULED','IN_PROGRESS') "
+                        + "AND starts_at<? AND ends_at>?",
+                (rs, n) -> new BusyInterval(rs.getTimestamp(1).toInstant(),
+                        rs.getTimestamp(2).toInstant()),
+                barberId, utc(nextDay), utc(dayStart)));
+        occupiedToday.addAll(jdbc.query(
+                "SELECT starts_at,ends_at FROM blocked_periods WHERE barber_id=? "
+                        + "AND starts_at<? AND ends_at>?",
+                (rs, n) -> new BusyInterval(rs.getTimestamp(1).toInstant(),
+                        rs.getTimestamp(2).toInstant()),
+                barberId, utc(nextDay), utc(dayStart)));
+
+        List<WeeklyBlockView> weekly = jdbc.query(
+                "SELECT id,weekday,starts_at,ends_at,valid_from,valid_until,reason,notes "
+                        + "FROM recurring_blocks WHERE barber_id=? AND weekday=? "
+                        + "AND valid_from<=? AND valid_until>=?",
+                (rs, n) -> new WeeklyBlockView(rs.getObject(1, UUID.class), rs.getInt(2),
+                        rs.getObject(3, LocalTime.class), rs.getObject(4, LocalTime.class),
+                        rs.getObject(5, LocalDate.class), rs.getObject(6, LocalDate.class),
+                        rs.getString(7), rs.getString(8)),
+                barberId, date.getDayOfWeek().getValue(), date, date);
+        for (WeeklyBlockView block : weekly) {
+            Instant start = resolved(date, block.startsAt(), zone);
+            Instant end = resolved(date, block.endsAt(), zone);
+            if (start != null && end != null && end.isAfter(start)) {
+                occupiedToday.add(new BusyInterval(start, end));
             }
+        }
+
+        List<FreeSlot> result = new ArrayList<>();
+        for (WorkingHoursView hours : today) {
             for (LocalTime time = hours.opensAt(); Duration.between(time, hours.closesAt()).toMinutes() >= duration;
                     time = time.plusMinutes(15)) {
                 Instant from = resolved(date, time, zone);
                 Instant to = resolved(date, time.plusMinutes(duration), zone);
                 if (from != null && to != null && to.isAfter(from)
-                        && !occupied(barberId, from, to)
-                        && !recurringOverlaps(barberId, from, to, zone)) {
+                        && occupiedToday.stream().noneMatch(interval -> interval.overlaps(from, to))) {
                     result.add(new FreeSlot(from, to, time));
                 }
                 if (time.isAfter(LocalTime.of(23, 30))) {
@@ -225,6 +265,12 @@ public class ScheduleConfigService {
             }
         }
         return result;
+    }
+
+    private record BusyInterval(Instant startsAt, Instant endsAt) {
+        boolean overlaps(Instant from, Instant to) {
+            return startsAt.isBefore(to) && endsAt.isAfter(from);
+        }
     }
 
     private ZoneId lockBarber(UUID barberId) {

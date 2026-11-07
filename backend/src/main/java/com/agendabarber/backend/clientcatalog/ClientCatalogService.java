@@ -4,6 +4,7 @@ import com.agendabarber.backend.clientcatalog.ClientCatalogDtos.ClientInput;
 import com.agendabarber.backend.clientcatalog.ClientCatalogDtos.ClientView;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -171,13 +172,49 @@ public class ClientCatalogService {
         throw new InvalidClientException();
     }
 
-    /** Soft deletion retains appointment foreign keys and historical attribution. */
+    /**
+     * Hides the client without deleting historical appointments or debt entries.
+     * Open bookings and outstanding debt must be resolved before removal.
+     */
     @Transactional
     public void deactivate(UUID barberId, UUID clientId) {
-        int changed = jdbc.update("UPDATE clients SET active=false WHERE barber_id=? "
-                + "AND id=? AND active=true", barberId, clientId);
+        List<Boolean> active = jdbc.query(
+                "SELECT active FROM clients WHERE barber_id=? AND id=? FOR UPDATE",
+                (rs, index) -> rs.getBoolean(1), barberId, clientId);
+        if (active.isEmpty() || !active.get(0)) {
+            throw new ClientNotFoundException();
+        }
+        Integer openAppointments = jdbc.queryForObject(
+                "SELECT count(*) FROM appointments WHERE barber_id=? AND client_id=? "
+                        + "AND status IN ('SCHEDULED'::appointment_status, 'IN_PROGRESS'::appointment_status)",
+                Integer.class, barberId, clientId);
+        if (openAppointments != null && openAppointments > 0) {
+            throw new ClientHasOpenAppointmentsException();
+        }
+        BigDecimal balance = jdbc.queryForObject(
+                "SELECT COALESCE(SUM(amount), 0) FROM client_debt_entries "
+                        + "WHERE barber_id=? AND client_id=?",
+                BigDecimal.class, barberId, clientId);
+        if (balance != null && balance.signum() > 0) {
+            throw new ClientHasOutstandingDebtException();
+        }
+        int changed = jdbc.update(
+                "UPDATE clients SET active=false WHERE barber_id=? AND id=? AND active=true",
+                barberId, clientId);
         if (changed != 1) {
             throw new ClientNotFoundException();
+        }
+    }
+
+    public static final class ClientHasOpenAppointmentsException extends RuntimeException {
+        public ClientHasOpenAppointmentsException() {
+            super("Client still has open appointments");
+        }
+    }
+
+    public static final class ClientHasOutstandingDebtException extends RuntimeException {
+        public ClientHasOutstandingDebtException() {
+            super("Client still has outstanding debt");
         }
     }
 

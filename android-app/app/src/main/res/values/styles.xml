@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.AgendaBarber" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/agenda_barber_splash_background</item>
+        <item name="android:statusBarColor">@color/agenda_barber_splash_background</item>
+        <item name="android:navigationBarColor">@color/agenda_barber_splash_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+    <style name="Theme.AgendaBarber.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/agenda_barber_splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/agenda_barber_ab_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.AgendaBarber</item>
+    </style>
+</resources>
