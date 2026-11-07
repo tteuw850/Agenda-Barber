@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.StarBorder
@@ -79,6 +80,10 @@ internal fun BarberClientsCatalogScreen(api: AgendaApi, token: String, refreshSi
     var favoriteBusy by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf<ClientView?>(null) }
     var menuOpen by remember { mutableStateOf(false) }
+    var pendingRemoval by remember { mutableStateOf<ClientView?>(null) }
+    var removingClient by remember { mutableStateOf(false) }
+    var removalError by remember { mutableStateOf("") }
+    var removalNotice by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(token, query, filter, refreshSignal, revision) {
@@ -133,6 +138,7 @@ internal fun BarberClientsCatalogScreen(api: AgendaApi, token: String, refreshSi
             onSelect = { filter = ClientFilter.entries[it] }
         )
         if (loading) CircularProgressIndicator(color = BarberGold)
+        if (removalNotice.isNotBlank()) Text(removalNotice, color = BarberGold)
         if (error.isNotBlank()) {
             Text(error, color = MaterialTheme.colorScheme.error)
             TextButton(onClick = { revision++ }) { Text("Tentar novamente") }
@@ -237,6 +243,70 @@ internal fun BarberClientsCatalogScreen(api: AgendaApi, token: String, refreshSi
             },
             confirmButton = {
                 TextButton(onClick = { selected = null }) { Text("Fechar") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        selected = null
+                        removalError = ""
+                        pendingRemoval = client
+                    }
+                ) {
+                    Icon(Icons.Outlined.DeleteOutline, contentDescription = null)
+                    Text("Remover cliente", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        )
+    }
+    pendingRemoval?.let { client ->
+        AlertDialog(
+            onDismissRequest = { if (!removingClient) pendingRemoval = null },
+            title = { Text("Remover ${client.name}?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "O cliente deixará de aparecer na lista. " +
+                            "O histórico de atendimentos e registros financeiros será preservado."
+                    )
+                    Text(
+                        "Se houver agendamentos em aberto ou dívidas pendentes, a remoção será bloqueada.",
+                        color = BarberTextSecondary
+                    )
+                    if (removalError.isNotBlank()) {
+                        Text(removalError, color = MaterialTheme.colorScheme.error)
+                    }
+                    if (removingClient) CircularProgressIndicator(color = BarberGold)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !removingClient,
+                    onClick = {
+                        removingClient = true
+                        removalError = ""
+                        scope.launch {
+                            try {
+                                api.removeClient(token, client.id)
+                                clients = clients.filterNot { it.id == client.id }
+                                pendingRemoval = null
+                                removalNotice = "Cliente removido da lista."
+                                revision++
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (failure: Exception) {
+                                removalError = clientRemovalErrorMessage(failure)
+                            } finally {
+                                removingClient = false
+                            }
+                        }
+                    }
+                ) { Text("Remover", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !removingClient,
+                    onClick = { pendingRemoval = null }
+                ) { Text("Cancelar") }
             }
         )
     }
