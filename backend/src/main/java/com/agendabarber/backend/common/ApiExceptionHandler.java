@@ -98,6 +98,20 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.CONFLICT, "Conflict", "Phone already registered.");
     }
 
+    @ExceptionHandler(ClientCatalogService.ClientHasOpenAppointmentsException.class)
+    ResponseEntity<ProblemDetail> clientHasOpenBookings(
+            ClientCatalogService.ClientHasOpenAppointmentsException ignored) {
+        return problem(HttpStatus.CONFLICT, "Client has open appointments",
+                "Cancel or complete open appointments before removing this client.");
+    }
+
+    @ExceptionHandler(ClientCatalogService.ClientHasOutstandingDebtException.class)
+    ResponseEntity<ProblemDetail> clientHasDebt(
+            ClientCatalogService.ClientHasOutstandingDebtException ignored) {
+        return problem(HttpStatus.CONFLICT, "Client has outstanding debt",
+                "Settle the outstanding balance before removing this client.");
+    }
+
     @ExceptionHandler(ScheduleConfigService.InvalidScheduleException.class)
     ResponseEntity<ProblemDetail> invalidSchedule(ScheduleConfigService.InvalidScheduleException ignored) {
         return problem(HttpStatus.BAD_REQUEST, "Invalid request", "Invalid scheduling settings.");

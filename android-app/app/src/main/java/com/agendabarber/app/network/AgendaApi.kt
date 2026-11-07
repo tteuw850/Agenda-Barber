@@ -331,6 +331,9 @@ interface AgendaApi {
         @Query("filter") filter: String = "all"
     ): List<ClientView>
 
+    @DELETE("api/v1/clients/{id}")
+    suspend fun removeClient(@Header("Authorization") bearer: String, @Path("id") id: String)
+
     @PATCH("api/v1/clients/{id}")
     suspend fun favoriteClient(
         @Header("Authorization") bearer: String,
