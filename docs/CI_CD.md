@@ -1,4 +1,7 @@
-# Agenda Barber: AWS EC2 only (31/10/2026)
+# Agenda Barber — AWS EC2 / CI-CD (histórico e estado v1.0.0)
+
+> **Atualização de 07/11/2026:** o conteúdo abaixo mantém o histórico da implantação DEV e das propostas de CD. O ambiente **PROD** utiliza Docker Compose projeto `agenda-barber-prod` na porta local `8081`, Caddy HTTPS e endpoint `https://prod-18-216-115-216.sslip.io/`. DEV utiliza o projeto **`deploy`** e porta local `8080`. Ao operar PROD use `docker compose -p agenda-barber-prod` explicitamente para não afetar DEV. A implantação da imagem `agenda-barber-prod:1.0.0-5977498` foi verificada, e o APK de distribuição 1.0.0 é assinado com a chave oficial local (nunca a descartável da CI). Veja [arquitetura](ARCHITECTURE.md) e [runbook](RELEASE_1_0_0_RUNBOOK.md).
+
 
 ## Current hosting
 - API Spring Boot 4.1.1 / Java 21 / PostgreSQL Neon.
@@ -36,9 +39,7 @@ https://18-216-115-216.sslip.io directly. Update it when public DNS changes.
 Use AWS CloudWatch/Billing Budgets, Docker logs and Caddy logs.
 
 ## Android
-The login screen defaults to https://18-216-115-216.sslip.io/ and still
-offers API HTTPS for changing host. Old APKs need manual configuration.
-The GitHub Actions debug APK is not a production release.
+O APK release usa a URL HTTPS PROD compilada no build e o pacote `com.agendabarber.app`. A tela de login pede somente usuário e senha (sem editar URL). APK debug/QA não substitui a versão oficial assinada.
 Validate login, scheduling, client/service CRUD, financial reports and
 offline behavior with Neon development.
 
