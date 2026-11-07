@@ -41,6 +41,7 @@ android {
         }
     }
     buildTypes {
+        getByName("debug") { applicationIdSuffix = ".qa" }
         getByName("release") {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("production")
