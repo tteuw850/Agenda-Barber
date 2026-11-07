@@ -2,9 +2,9 @@ package com.agendabarber.backend.scheduleconfig;
 
 import com.agendabarber.backend.scheduleconfig.ScheduleDtos.FreeSlot;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import javax.sql.DataSource;
@@ -64,8 +64,8 @@ class AvailableSlotsBatchIntegrationTests {
         jdbc.update("""
                 INSERT INTO blocked_periods(barber_id,starts_at,ends_at)
                 VALUES(?,?,?)
-                """, owner.barber(), Instant.parse("2031-06-02T13:30:00Z"),
-                Instant.parse("2031-06-02T14:00:00Z"));
+                """, owner.barber(), OffsetDateTime.parse("2031-06-02T13:30:00Z"),
+                OffsetDateTime.parse("2031-06-02T14:00:00Z"));
         jdbc.update("""
                 INSERT INTO recurring_blocks(barber_id,weekday,starts_at,ends_at,valid_from,valid_until)
                 VALUES(?,1,'11:30','12:00',?,?)
@@ -91,8 +91,8 @@ class AvailableSlotsBatchIntegrationTests {
         jdbc.update("""
                 INSERT INTO blocked_periods(barber_id,starts_at,ends_at)
                 VALUES(?,?,?)
-                """, owner.barber(), Instant.parse("2031-06-02T02:30:00Z"),
-                Instant.parse("2031-06-02T12:15:00Z"));
+                """, owner.barber(), OffsetDateTime.parse("2031-06-02T02:30:00Z"),
+                OffsetDateTime.parse("2031-06-02T12:15:00Z"));
         assertEquals(List.of("09:15", "09:30", "09:45", "10:00", "10:15", "10:30",
                 "10:45", "11:00", "11:15", "11:30"),
                 labels(service.availableSlots(owner.barber(), MONDAY, haircut)));
@@ -133,7 +133,7 @@ class AvailableSlotsBatchIntegrationTests {
                 INSERT INTO appointments(barber_id,client_id,service_id,starts_at,ends_at,
                     service_name_snapshot,price_snapshot,status)
                 VALUES(?,?,?, ?, ?, 'Standard haircut', 30.00, ?::appointment_status)
-                """, owner.barber(), owner.client(), haircut, Instant.parse(start), Instant.parse(end), status);
+                """, owner.barber(), owner.client(), haircut, OffsetDateTime.parse(start), OffsetDateTime.parse(end), status);
     }
 
     private static Owner owner() {
