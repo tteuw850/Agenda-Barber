@@ -1,5 +1,6 @@
 package com.agendabarber.app.ui
 
+import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -23,12 +24,13 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +43,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -64,13 +67,19 @@ internal fun validLoginInput(username: String, password: String): Boolean =
 @Composable
 fun AgendaApp() {
     val apiUrl = BuildConfig.API_BASE_URL
-    var username by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val loginPreferences = remember(context) {
+        context.applicationContext.getSharedPreferences("agenda-barber-login", Context.MODE_PRIVATE)
+    }
+    var rememberAccount by remember { mutableStateOf(loginPreferences.getBoolean("remember_account", false)) }
+    var username by remember {
+        mutableStateOf(if (rememberAccount) loginPreferences.getString("remembered_username", "").orEmpty() else "")
+    }
     var password by remember { mutableStateOf("") }
     var token by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var showPassword by remember { mutableStateOf(false) }
-    var recoveryNotice by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val currentToken = token
     if (currentToken == null) {
@@ -95,7 +104,7 @@ fun AgendaApp() {
                 verticalArrangement = Arrangement.Center
             ) {
                 Image(
-                    painter = painterResource(R.mipmap.ic_launcher),
+                    painter = painterResource(R.drawable.agenda_barber_ab_logo),
                     contentDescription = "Logo Agenda Barber",
                     modifier = Modifier.align(Alignment.CenterHorizontally).size(92.dp),
                     contentScale = ContentScale.Fit
@@ -120,7 +129,7 @@ fun AgendaApp() {
                 Spacer(Modifier.height(16.dp))
                 OutlinedTextField(
                     value = username,
-                    onValueChange = { username = it },
+                    onValueChange = { username = it; error = "" },
                     label = { Text("Nome de usuário") },
                     enabled = !busy,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
@@ -130,7 +139,7 @@ fun AgendaApp() {
                 )
                 OutlinedTextField(
                     value = password,
-                    onValueChange = { password = it },
+                    onValueChange = { password = it; error = "" },
                     label = { Text("Senha") },
                     enabled = !busy,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -150,10 +159,20 @@ fun AgendaApp() {
                     if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
                 )
-                TextButton(enabled = !busy, onClick = {
-                    recoveryNotice = !recoveryNotice
-                }) { Text("Esqueci minha senha", color = BarberGold) }
-                if (recoveryNotice) Text("Recuperação indisponível. Contate o administrador.")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = rememberAccount,
+                        enabled = !busy,
+                        onCheckedChange = { checked ->
+                            rememberAccount = checked
+                            val editor = loginPreferences.edit().putBoolean("remember_account", checked)
+                            if (!checked) editor.remove("remembered_username")
+                            editor.apply()
+                        },
+                        colors = CheckboxDefaults.colors(checkedColor = BarberGold)
+                    )
+                    Text("Lembrar conta", color = Color.White)
+                }
                 if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
                 Button(
                     enabled = !busy && validLoginInput(username, password),
@@ -162,18 +181,27 @@ fun AgendaApp() {
                     modifier = Modifier.fillMaxWidth(),
                     onClick = {
                         busy = true
+                        error = ""
                         scope.launch {
                             try {
                                 val client = AgendaApiFactory.create(apiUrl)
                                 val response = client.login(LoginRequest(username.trim().lowercase(), password))
-                                require(response.accessToken.isNotBlank()) { "Token de acesso vazio" }
+                                check(response.accessToken.isNotBlank()) { "Token de acesso vazio" }
+                                if (rememberAccount) {
+                                    loginPreferences.edit()
+                                        .putBoolean("remember_account", true)
+                                        .putString("remembered_username", username.trim().lowercase())
+                                        .apply()
+                                } else {
+                                    loginPreferences.edit().remove("remembered_username").apply()
+                                }
                                 token = "Bearer " + response.accessToken
                                 password = ""
                                 error = ""
                             } catch (e: IllegalArgumentException) {
                                 error = "Não foi possível conectar à API segura."
                             } catch (e: Exception) {
-                                error = apiMessage(e)
+                                error = loginErrorMessage(e)
                             } finally {
                                 busy = false
                             }
