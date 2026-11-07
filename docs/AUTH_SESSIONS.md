@@ -2,7 +2,7 @@
 
 ## API e segurança
 
-- POST /api/v1/auth/login: JSON com email e password.
+- POST /api/v1/auth/login: JSON com nome de usuário e senha (username/password) no fluxo atual. O Android não pede URL da API ao barbeiro.
 - POST /api/v1/auth/refresh: JSON com refreshToken; dispensado bearer.
 - POST /api/v1/auth/logout: exige Authorization Bearer, retorna HTTP 204.
 - GET /api/v1/auth/me: exige JWT válido.
@@ -15,13 +15,15 @@
 
 ## Integração Android
 
-Guardar tokens protegidos pelo Android Keystore, nunca no Room em texto puro, logs ou analytics.
+A implementação Android usa Android Keystore (AES-GCM) para cifrar o refresh token no armazenamento privado do aplicativo. O JWT de acesso fica em memória; a senha do barbeiro não é gravada ao marcar Lembrar conta. Nunca gravar tokens no Room em texto puro, logs ou analytics.
 Trocar o par de tokens de forma atômica depois de refresh bem-sucedido.
 Não tentar refresh novamente automaticamente depois de timeout ambíguo: a primeira chamada
 pode ter sido aplicada e a repetição pode disparar a proteção contra replay. Solicitar novo login.
-Ao receber 401, limpar estado autenticado e oferecer reautenticação.
+Ao receber 401/403 de sessão inválida, limpar estado autenticado e oferecer reautenticação. Falhas transitórias de rede/5xx durante restauração mantêm o token local para tentativa posterior. Caso um refresh rotativo tenha sido aplicado remotamente e a resposta se perca, pode ser necessário novo login.
 Tokens JWT antigos, sem os novos claims session_id e credential_version, exigirão novo login.
 Nenhuma credencial do Neon pertence ao APK.
+
+> **Estado em 07/11/2026:** os passos abaixo registram historicamente a implantação inicial de V2. O esquema atual de produção já alcançou V10; não reaplicar migrações antigas. Consulte o [runbook](RELEASE_1_0_0_RUNBOOK.md) e a [arquitetura](ARCHITECTURE.md).
 
 ## Sequência obrigatória para implantar em Neon
 

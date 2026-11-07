@@ -14,7 +14,7 @@ a esse barbeiro. IDs de outro barbeiro retornam 404 (sem vazamento de existênci
 | GET | /api/v1/clients/{id} | Detalhes do cliente, ou 404 |
 | POST | /api/v1/clients | Cria cliente, responde 201 + Location |
 | PATCH | /api/v1/clients/{id} | Edita campos enviados, responde 200 |
-| DELETE | /api/v1/clients/{id} | Desativa sem excluir dados históricos, responde 204 |
+| DELETE | /api/v1/clients/{id} | Desativa com confirmação na UI, preserva histórico e responde 204; retorna 409 se houver agendamentos abertos ou dívida |
 
 GET: search faz busca parcial por nome, sem diferenciar maiúsculas/minúsculas,
 ou por dígitos de telefone. Filtros aceitos: all (padrão), recent e favorites.
@@ -52,7 +52,7 @@ PATCH: objeto parcial. Campos ausentes permanecem; null apaga phone,
 email, birthDate, notes e photoUrl. name ou favorite em null, objeto
 vazio ou campos desconhecidos devolvem 400. DELETE é soft delete:
 inativo deixa de aparecer em listagem e GET, mas appointments mantém FK.
-Não há exclusão física de clientes nesta fase.
+Na versão 1.0.0, a API primeiro bloqueia a linha do cliente por `barber_id`, consulta agendamentos com status `SCHEDULED` ou `IN_PROGRESS` e o saldo do livro de dívidas. Com qualquer agendamento aberto ou saldo devedor positivo, responde **409 Conflict**; só então define `active=false`. O cliente deixa de aparecer nas listas, mas atendimentos e registros financeiros não são fisicamente excluídos. A tela Android exige uma segunda confirmação. Exclusão de cliente inexistente/inativo ou pertencente a outro barbeiro responde 404.
 
 Conexão UX-04: GET com search e selecionar id do cliente ao agendar;
 UX-05: POST e retornar id após salvar; UX-06: filtros all/recent/favorites,
@@ -68,9 +68,6 @@ spring.flyway.enabled=false no runtime: executar V4 com migrador
 autorizado e validar ANTES do deploy da API, sem secrets no Git/APK.
 Este PR não aplica migração no Neon.
 
-## Fora do escopo deste backend
+## Integração Android na v1.0.0
 
-A criação visual das telas UX-05/UX-06 em Jetpack Compose, Retrofit,
-cache Room, upload real de fotos e interação com agendamento por HTTP
-são tarefas de UI F02-08/F02-10 e fluxo F02-04/F02-07. Não considerar
-integração visual ou deploy como concluídos apenas pelo CI Java/Android.
+As telas Compose de lista, busca, favoritos, detalhes, inclusão e remoção foram integradas à API. A interface informa falha de rede, erro de autenticação e bloqueio de exclusão. Imagens de clientes reais e uploads de foto para storage gerenciado são evoluções separadas; o `photoUrl` é somente uma referência HTTPS. Veja [galeria](SCREENS_GALLERY.md) e [README](../README.md).
