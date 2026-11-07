@@ -36,8 +36,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -46,8 +46,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -231,7 +231,10 @@ fun AgendaApp() {
                 Spacer(Modifier.height(16.dp))
                 OutlinedTextField(
                     value = username,
-                    onValueChange = { username = it; error = "" },
+                    onValueChange = {
+                        username = it
+                        error = ""
+                    },
                     label = { Text("Nome de usuário") },
                     enabled = !busy,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
@@ -241,7 +244,10 @@ fun AgendaApp() {
                 )
                 OutlinedTextField(
                     value = password,
-                    onValueChange = { password = it; error = "" },
+                    onValueChange = {
+                        password = it
+                        error = ""
+                    },
                     label = { Text("Senha") },
                     enabled = !busy,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),

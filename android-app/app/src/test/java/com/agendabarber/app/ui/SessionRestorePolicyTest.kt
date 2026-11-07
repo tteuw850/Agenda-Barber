@@ -36,6 +36,5 @@ class SessionRestorePolicyTest {
         )
     }
 
-    private fun httpError(code: Int) =
-        HttpException(Response.error<Any>(code, ResponseBody.create(null, "error")))
+    private fun httpError(code: Int) = HttpException(Response.error<Any>(code, ResponseBody.create(null, "error")))
 }
