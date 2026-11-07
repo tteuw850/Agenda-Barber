@@ -133,7 +133,8 @@ class AvailableSlotsBatchIntegrationTests {
                 INSERT INTO appointments(barber_id,client_id,service_id,starts_at,ends_at,
                     service_name_snapshot,price_snapshot,status)
                 VALUES(?,?,?, ?, ?, 'Standard haircut', 30.00, ?::appointment_status)
-                """, owner.barber(), owner.client(), haircut, OffsetDateTime.parse(start), OffsetDateTime.parse(end), status);
+                """, owner.barber(), owner.client(), haircut, OffsetDateTime.parse(start),
+                OffsetDateTime.parse(end), status);
     }
 
     private static Owner owner() {
