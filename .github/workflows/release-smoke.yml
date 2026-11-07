@@ -1,0 +1,44 @@
+name: Release Candidate - Safe Signing Smoke
+on:
+  push:
+    branches: [release/1.0.0-rc1]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-release-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.4.1'
+      - name: Create disposable CI-only signing key
+        run: |
+          keytool -genkeypair -noprompt -storetype PKCS12 -keystore "$RUNNER_TEMP/ci-release-test.jks" -alias ephemeral -keyalg RSA -keysize 2048 -validity 1 -dname "CN=CI TEST ONLY" -storepass "CI-ONLY-test-123456" -keypass "CI-ONLY-test-123456"
+          echo "AB_RELEASE_KEYSTORE=$RUNNER_TEMP/ci-release-test.jks" >> "$GITHUB_ENV"
+          echo "AB_RELEASE_STORE_PASSWORD=CI-ONLY-test-123456" >> "$GITHUB_ENV"
+          echo "AB_RELEASE_KEY_PASSWORD=CI-ONLY-test-123456" >> "$GITHUB_ENV"
+          echo "AB_RELEASE_KEY_ALIAS=ephemeral" >> "$GITHUB_ENV"
+          echo "AB_PROD_API_URL=https://prod-18-216-115-216.sslip.io/" >> "$GITHUB_ENV"
+      - name: Compile release for validated PROD URL with disposable key (never distribute)
+        working-directory: android-app
+        run: gradle --no-daemon :app:assembleRelease
+      - name: Verify signed release package
+        run: |
+          APK=android-app/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep "package: name='com.agendabarber.app'"
+      - name: Destroy disposable signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ci-release-test.jks"
