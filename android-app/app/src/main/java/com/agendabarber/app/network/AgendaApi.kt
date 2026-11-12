@@ -19,6 +19,7 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 data class LoginRequest(val username: String, val password: String)
+data class RefreshRequest(val refreshToken: String)
 
 data class LoginResponse(
     val accessToken: String,
@@ -221,6 +222,12 @@ interface AgendaApi {
     @POST("api/v1/auth/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
 
+    @POST("api/v1/auth/refresh")
+    suspend fun refresh(@Body request: RefreshRequest): LoginResponse
+
+    @POST("api/v1/auth/logout")
+    suspend fun logout(@Header("Authorization") bearer: String)
+
     @GET("api/v1/reports/dashboard")
     suspend fun reportingDashboard(
         @Header("Authorization") bearer: String,
@@ -323,6 +330,9 @@ interface AgendaApi {
         @Query("limit") limit: Int = 100,
         @Query("filter") filter: String = "all"
     ): List<ClientView>
+
+    @DELETE("api/v1/clients/{id}")
+    suspend fun removeClient(@Header("Authorization") bearer: String, @Path("id") id: String)
 
     @PATCH("api/v1/clients/{id}")
     suspend fun favoriteClient(

@@ -1,5 +1,8 @@
+import java.net.URI
+
 // Release credentials and the production endpoint are supplied only by the release machine.
 val prodApiUrl = System.getenv("AB_PROD_API_URL")
+val prodApiHost = prodApiUrl?.let { runCatching { URI(it).host }.getOrNull() }
 val releaseKeyStore = System.getenv("AB_RELEASE_KEYSTORE")
 val releaseStorePassword = System.getenv("AB_RELEASE_STORE_PASSWORD")
 val releaseKeyAlias = System.getenv("AB_RELEASE_KEY_ALIAS")
@@ -38,6 +41,7 @@ android {
         }
     }
     buildTypes {
+        getByName("debug") { applicationIdSuffix = ".qa" }
         getByName("release") {
             isMinifyEnabled = false
             signingConfig = signingConfigs.getByName("production")
@@ -61,6 +65,7 @@ android {
 }
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2026.04.01"))
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.activity:activity-compose:1.12.0")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
@@ -84,7 +89,8 @@ tasks.matching { it.name == "preReleaseBuild" }.configureEach {
     doFirst {
         require(
             prodApiUrl?.startsWith("https://") == true &&
-                !prodApiUrl.contains("18-216-115-216.sslip.io")
+                !prodApiHost.isNullOrBlank() &&
+                prodApiHost != "18-216-115-216.sslip.io"
         ) {
             "A separate HTTPS production API endpoint is required to build release."
         }
